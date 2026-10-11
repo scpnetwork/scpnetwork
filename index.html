@@ -266,7 +266,6 @@ function telegramLogin(){
   var origin=window.location.origin;
   var returnUrl=encodeURIComponent(new URL('callback.html', window.location.href).href);
   window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
-}
 async function onTelegramAuth(user){
   try{
     var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
@@ -292,6 +291,19 @@ var saved=sessionStorage.getItem('isb_user');
 if(saved)applyAuth(JSON.parse(saved));
 var tgCallback=sessionStorage.getItem('tg_callback');
 if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
+
+<script>
+setTimeout(function(){
+  var l=document.getElementById('loader');
+  if(!l)return;
+  l.classList.add('out');
+  setTimeout(function(){
+    l.style.display='none';
+    document.getElementById('site').classList.add('visible');
+  },650);
+},2300);
+</script>
+  
 </script>
 </body>
 </html>
