@@ -262,7 +262,6 @@ function doSearch(e){
   show('generic');mark(null);
   return false;
 }
-
 function telegramLogin(){
   var origin=window.location.origin;
   var returnUrl=encodeURIComponent(new URL('callback.html', window.location.href).href);
@@ -270,7 +269,7 @@ function telegramLogin(){
 }
 async function onTelegramAuth(user){
   try{
-    var res = await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth', {
+    var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
     var data=await res.json();
     if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data)}
   }catch(e){console.error('Auth error:',e)}
