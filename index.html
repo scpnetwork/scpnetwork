@@ -292,7 +292,6 @@ if(saved)applyAuth(JSON.parse(saved));
 var tgCallback=sessionStorage.getItem('tg_callback');
 if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
 
-<script>
 setTimeout(function(){
   var l=document.getElementById('loader');
   if(!l)return;
@@ -302,7 +301,6 @@ setTimeout(function(){
     document.getElementById('site').classList.add('visible');
   },650);
 },2300);
-</script>
   
 </script>
 </body>
