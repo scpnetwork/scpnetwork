@@ -267,7 +267,7 @@ function doSearch(e){
 function telegramLogin(){
   var origin=window.location.origin;
   var returnUrl=encodeURIComponent(origin+'/callback.html');
-  window.location.href='https://oauth.telegram.org/auth?bot_id=8913958679&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
+  window.location.href='https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth'+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
 }
 async function onTelegramAuth(user){
   try{
