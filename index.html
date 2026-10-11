@@ -265,12 +265,12 @@ function doSearch(e){
 
 function telegramLogin(){
   var origin=window.location.origin;
-  var returnUrl=encodeURIComponent(origin+'/callback.html');
-  window.location.href='https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth'+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
+  var returnUrl=encodeURIComponent(new URL('callback.html', window.location.href).href);
+  window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
 }
 async function onTelegramAuth(user){
   try{
-    var res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
+    var res = await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth', {
     var data=await res.json();
     if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data)}
   }catch(e){console.error('Auth error:',e)}
