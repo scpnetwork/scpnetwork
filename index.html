@@ -290,7 +290,10 @@ function doSearch(e){
 /* Auth (логика из вашего кода) */
 function telegramLogin(){
   var origin=window.location.origin;
-  var returnUrl=encodeURIComponent(origin+'/callback.html');
+  var path=window.location.pathname;
+  if(!/\/$/.test(path)&&!/\.[a-z]+$/i.test(path))path+='/';
+  path=path.replace(/[^\/]*$/,'');
+  var returnUrl=encodeURIComponent(origin+path+'callback.html');
   window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
 }
 async function onTelegramAuth(user){
