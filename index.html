@@ -71,7 +71,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .classes button:hover,.classes button.active{border-color:#fff;background:#fff;color:#000}
 .nav-sep{height:1px;background:var(--line);margin:8px 22px}
 .only-admin{display:none}
-body.role-admin .only-admin{display:block}
+body.role-admin .only-admin,body.role-lead .only-admin{display:block}
+.only-auth{display:none}
+body[class*="role-"] .only-auth{display:block}
+.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{border-top:1px solid var(--line);padding:8px 10px;text-align:left;white-space:nowrap}.tbl th{color:var(--muted);font-weight:400;border-top:0}
+.mini{border:1px solid var(--line-hi);padding:2px 10px;margin-right:6px}.mini:hover{background:#fff;color:#000}
+.rsel{background:#000;color:#fff;border:1px solid var(--line-hi);padding:2px 6px;font:inherit}
+.cab-head{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;margin-bottom:20px;color:var(--muted)}
+.cab-head b{font-family:var(--head);font-size:22px;color:#fff}
+.cab-role{border:1px solid var(--line-hi);padding:0 10px;color:#fff}
+.cab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 24px}
 
 /* Content */
 #content{flex:1;width:100%;max-width:1100px;margin:0 auto;padding:28px 20px 40px}
@@ -126,12 +135,22 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
       <button type="submit" aria-label="Найти">&#9906;</button>
     </form>
     <div id="auth-guest"><a class="btn" href="#" onclick="telegramLogin();return false">Вход</a></div>
-    <div id="auth-user"><span id="auth-name"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
+    <div id="auth-user"><span id="auth-name" data-page="cabinet" style="cursor:pointer;text-decoration:underline" title="Кабинет"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
   </header>
 
   <div id="scrim"></div>
   <nav id="nav" aria-label="Основное меню">
     <button class="nav-item active" data-page="home">Главная</button>
+    <div class="only-auth">
+      <div class="nav-sep"></div>
+      <div class="nav-group">Рабочие разделы</div>
+      <button class="nav-item" data-page="cabinet" data-min="0">Кабинет</button>
+      <button class="nav-item" data-page="polygon" data-min="2">Полигон</button>
+      <button class="nav-item" data-page="review" data-min="3">Проверка статей</button>
+      <button class="nav-item" data-page="moderation" data-min="3">Модерация</button>
+      <button class="nav-item" data-page="users" data-min="3">Заявки и пользователи</button>
+      <button class="nav-item" data-page="publish" data-min="4">На публикацию</button>
+    </div>
     <button class="nav-item" data-page="authors">Для новых авторов</button>
     <div class="nav-sep"></div>
     <div class="nav-group">Объекты по классам</div>
@@ -142,16 +161,11 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
     <div class="nav-sep"></div>
     <button class="nav-item" data-page="stories">Рассказы</button>
     <button class="nav-item" data-page="hubs">Хабы</button>
-    <button class="nav-item" data-page="polygon">Полигон</button>
     <div class="nav-sep"></div>
     <button class="nav-item" data-page="rules">Правила</button>
     <button class="nav-item" data-page="contacts">Контакты</button>
     <button class="nav-item" data-page="discussion">Обсуждение</button>
     <button class="nav-item" data-page="license">Лицензия</button>
-    <div class="only-admin">
-      <div class="nav-sep"></div>
-      <button class="nav-item" data-page="dashboard">Панель администратора</button>
-    </div>
   </nav>
 
   <main id="content">
@@ -174,6 +188,11 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
       <div class="box"><h2 id="g-sub"></h2><div class="in" id="g-body"></div></div>
     </section>
 
+    <section class="tab" id="tab-cabinet">
+      <h1>Кабинет</h1>
+      <div id="cab"></div>
+    </section>
+
     <section class="tab" id="tab-dashboard">
       <h1>Панель администратора</h1>
       <div class="box"><h2>Заявки на рассмотрении</h2><div class="in" id="admin-applications"><p>Загрузка...</p></div></div>
@@ -191,6 +210,10 @@ var WIP = '<p>Раздел в разработке.</p><span class="redact m"></
 var PAGES = {
   newbies:{t:'Для новых пользователей',s:'Как пользоваться сайтом',b:'<ol class="steps"><li><span>Войдите через Telegram: так вы сможете оценивать и комментировать статьи.</span></li><li><span>Откройте меню и выберите класс объектов.</span></li><li><span>Хотите писать сами? Раздел «Для новых авторов» объясняет, как подать заявку.</span></li></ol>'},
   authors:{t:'Для новых авторов',s:'С чего начать',b:'<p>Здесь будет руководство: как получить права автора, оформить статью и отправить её на проверку.</p><span class="redact m"></span><span class="redact s"></span>'},
+  review:{t:'Проверка статей',s:'Очередь',b:'<p>Статьи со статусом «завершено»: принять или отклонить с обратной связью.</p>'+WIP},
+  moderation:{t:'Модерация',s:'Комментарии и оценки',b:WIP},
+  publish:{t:'На публикацию',s:'Одобрено администраторами',b:'<p>Выпустить статью или отклонить с комментарием.</p>'+WIP},
+  users:{t:'Заявки и пользователи',s:'Все входы на сайт',b:''},
   stories:{t:'Рассказы',s:'Каталог',b:WIP},
   hubs:{t:'Хабы',s:'Тематические подборки',b:WIP},
   polygon:{t:'Полигон',s:'Черновики и тесты',b:'<p>Место для черновиков: пишите, проверяйте оформление и получайте отзывы до публикации.</p>'+WIP},
@@ -229,13 +252,14 @@ function mark(el){
   if(el)el.classList.add('active');
 }
 function openPage(id){
-  if(id==='home'||id==='dashboard'){show(id)}
+  if(id==='home'||id==='dashboard'||id==='cabinet'){if(id==='cabinet')renderCabinet();show(id)}
   else{
     var p=PAGES[id];
     document.getElementById('g-title').textContent=p.t;
     document.getElementById('g-sub').textContent=p.s;
     document.getElementById('g-body').innerHTML=p.b;
     show('generic');
+    if(id==='users')renderUsers();
   }
   mark(document.querySelector('#nav .nav-item[data-page="'+id+'"]'));
   setNav(false);
@@ -262,9 +286,11 @@ function doSearch(e){
   show('generic');mark(null);
   return false;
 }
+
+/* Auth (логика из вашего кода) */
 function telegramLogin(){
   var origin=window.location.origin;
-  var returnUrl=encodeURIComponent(new URL('callback.html', window.location.href).href);
+  var returnUrl=encodeURIComponent(origin+'/callback.html');
   window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
 }
 async function onTelegramAuth(user){
@@ -272,37 +298,110 @@ async function onTelegramAuth(user){
     var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
     var data=await res.json();
     if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data)}
-else{console.error('Auth failed:',data)}
+    else{console.error('Auth failed:',data)}
+  }catch(e){console.error('Auth error:',e)}
 }
 function applyAuth(data){
+  window.CUR=data;
   document.getElementById('auth-guest').style.display='none';
   document.getElementById('auth-user').style.display='flex';
   document.getElementById('auth-name').textContent=data.telegram.username?'@'+data.telegram.username:data.telegram.first_name;
-  var roleMap={reader:'читатель',author:'автор',admin:'админ'};
-  document.getElementById('auth-role').textContent=roleMap[data.user.role]||'';
-  document.body.className='role-'+data.user.role;
+  var roleMap={reader:'читатель',author:'автор',admin:'админ',lead:'руководитель'};
+  var ok=data.user.status==='approved';
+  document.getElementById('auth-role').textContent=ok?(roleMap[data.user.role]||''):(data.user.status==='rejected'?'отклонён':'заявка на рассмотрении');
+  document.body.className='role-'+(ok?data.user.role:'reader');
+  var rk0=ok?(RANK[data.user.role]||1):0;
+  document.querySelectorAll('#nav [data-min]').forEach(function(el){el.style.display=rk0>=Number(el.dataset.min)?'block':'none'});
 }
+
+/* Кабинеты по ролям (пока только интерфейс, данные подключим к Supabase) */
+var RANK={reader:1,author:2,admin:3,lead:4};
+var ROLE_RU={reader:'читатель',author:'автор',admin:'администратор',lead:'руководитель'};
+function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var SECTIONS=[
+  [1,'Библиотека','<p>Понравившиеся статьи появятся здесь.</p>'],
+  [1,'Мои комментарии и оценки','<p>История ваших комментариев и оценок.</p>'],
+  [2,'Мои статьи (Полигон)','<p>Черновики и статусы: черновик → завершено → на проверке → опубликовано.</p>'],
+  [2,'Отзывы проверяющих','<p>Здесь будет обратная связь, если работу отклонили.</p>'],
+  [3,'Очередь проверки','<p>Статьи со статусом «завершено»: принять или отклонить с обратной связью автору.</p>'],
+  [3,'Модерация','<p>Комментарии и оценки, требующие проверки.</p>'],
+  [4,'На публикацию','<p>Статьи, одобренные администраторами: выпустить или отклонить с комментарием.</p>'],
+  [4,'Пользователи и роли','<p>Назначение ролей: читатель, автор, администратор, руководитель.</p>']
+];
+function renderCabinet(){
+  var c=window.CUR; if(!c)return;
+  var role=c.user.role, st=c.user.status, rk=st==='approved'?(RANK[role]||1):0;
+  var name=c.telegram.username?'@'+c.telegram.username:c.telegram.first_name;
+  var h='<div class="cab-head"><b>'+esc(name)+'</b><span class="cab-role">'+esc(ROLE_RU[role]||role)+'</span></div><div class="cab-grid">';
+  if(st!=='approved')h+='<div class="box"><h2>Статус заявки</h2><div class="in"><p>'+(st==='rejected'?'Заявка отклонена администрацией.':'Ваша заявка на рассмотрении. Доступ откроется после подтверждения.')+'</p></div></div>';
+  SECTIONS.forEach(function(s){
+    if(rk>=s[0]) h+='<div class="box"><h2>'+s[1]+'</h2><div class="in">'+s[2]+'<span class="redact m"></span><span class="redact s"></span></div></div>';
+  });
+  document.getElementById('cab').innerHTML=h+'</div>';
+}
+
+/* API (Edge Function api) */
+var API='https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/api';
+async function api(action,params){
+  var sv=JSON.parse(sessionStorage.getItem('isb_user')||'{}');
+  var r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sv.token||'')},body:JSON.stringify(Object.assign({action:action},params||{}))});
+  var d=await r.json().catch(function(){return{ok:false}});
+  if(r.status===401)logout();
+  return d;
+}
+async function refreshMe(){
+  try{
+    var d=await api('me');
+    if(d.ok){var sv=JSON.parse(sessionStorage.getItem('isb_user'));sv.user=d.user;sessionStorage.setItem('isb_user',JSON.stringify(sv));applyAuth(sv)}
+  }catch(e){}
+}
+async function renderUsers(){
+  var body=document.getElementById('g-body');body.textContent='Загрузка…';
+  var d=await api('users');
+  if(!d.ok){body.textContent='Нет доступа или ошибка: '+(d.error||'');return}
+  var lead=window.CUR&&window.CUR.user.role==='lead';
+  var ST={pending:'ожидает',approved:'принят',rejected:'отклонён'};
+  var h='<div style="overflow-x:auto"><table class="tbl"><tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Последний вход</th><th></th></tr>';
+  d.users.forEach(function(u){
+    var nm=u.username?'@'+u.username:(u.first_name||u.telegram_id);
+    var rc=ROLE_RU[u.role]||u.role;
+    if(lead&&u.role!=='lead'){rc='<select class="rsel" data-uid="'+u.telegram_id+'">'+['reader','author','admin','lead'].map(function(r){return'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+ROLE_RU[r]+'</option>'}).join('')+'</select>'}
+    var act=u.role==='lead'?'':'<button class="mini" data-act="approved" data-id="'+u.telegram_id+'">Принять</button><button class="mini" data-act="rejected" data-id="'+u.telegram_id+'">Отклонить</button>';
+    h+='<tr><td>'+esc(nm)+'</td><td>'+rc+'</td><td>'+ST[u.status]+'</td><td>'+(u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—')+'</td><td>'+act+'</td></tr>';
+  });
+  body.innerHTML=h+'</table></div>';
+}
+document.getElementById('g-body').addEventListener('click',async function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;
+  var d=await api('set_status',{id:b.dataset.id,status:b.dataset.act});
+  if(!d.ok)alert('Ошибка: '+(d.error||''));
+  renderUsers();
+});
+document.getElementById('g-body').addEventListener('change',async function(e){
+  var sel=e.target.closest('.rsel');if(!sel)return;
+  var d=await api('set_role',{id:sel.dataset.uid,role:sel.value});
+  if(!d.ok)alert('Ошибка: '+(d.error||''));
+  renderUsers();
+});
 function logout(){
   sessionStorage.removeItem('isb_user');
   document.getElementById('auth-guest').style.display='block';
   document.getElementById('auth-user').style.display='none';
   document.body.className='';
 }
-var saved=sessionStorage.getItem('isb_user');
-if(saved)applyAuth(JSON.parse(saved));
-var tgCallback=sessionStorage.getItem('tg_callback');
-if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
-
-setTimeout(function(){
-  var l=document.getElementById('loader');
-  if(!l)return;
-  l.classList.add('out');
-  setTimeout(function(){
-    l.style.display='none';
-    document.getElementById('site').classList.add('visible');
-  },650);
-},2300);
-  
+try{
+  var saved=sessionStorage.getItem('isb_user');
+  if(saved){applyAuth(JSON.parse(saved));refreshMe()}
+}catch(e){sessionStorage.removeItem('isb_user')}
+try{
+  var tgCallback=sessionStorage.getItem('tg_callback');
+  if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
+}catch(e){sessionStorage.removeItem('tg_callback')}
+/* Демо-просмотр кабинетов: ?demo=reader|author|admin|lead (только интерфейс; удалить перед запуском Полигона) */
+var dm=new URLSearchParams(location.search).get('demo');
+if(dm&&RANK[dm])applyAuth({telegram:{username:'demo',first_name:'Demo'},user:{role:dm,status:'approved'}});
+/* страховка: загрузчик не должен зависать */
+setTimeout(function(){var l=document.getElementById('loader');if(l&&l.style.display!=='none'){l.classList.add('out');l.style.display='none';document.getElementById('site').classList.add('visible')}},4000);
 </script>
 </body>
 </html>
