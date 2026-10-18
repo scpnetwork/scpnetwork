@@ -53,9 +53,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #search button{padding:0 10px;color:var(--muted)}
 .btn{display:inline-block;background:rgba(0,0,0,.65);box-shadow:0 2px 6px rgba(0,0,0,.6);padding:7px 18px;border:1px solid var(--line-hi);font-family:var(--head);font-weight:700;font-size:17px;letter-spacing:1px;text-decoration:none;white-space:nowrap}
 .btn:hover{background:#fff;color:#000}
-#auth-user{display:none;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
-#auth-user .logout{cursor:pointer;color:var(--dim)}
-#auth-user .logout:hover{color:#fff}
+#auth-user{display:none;align-items:center;gap:12px;background:#000;border:1px solid var(--line-hi);box-shadow:0 2px 6px rgba(0,0,0,.6);padding:6px 16px;font-size:13px;color:#e8e8e8;white-space:nowrap}
+#auth-name{cursor:pointer;font-family:var(--head);font-weight:700;font-size:18px;color:#fff}
+#auth-name:hover{text-decoration:underline;text-underline-offset:3px}
+#auth-role,#auth-user .logout{padding-left:12px;border-left:1px solid #444}
+#auth-role{color:#bdbdbd}
+#auth-user .logout{cursor:pointer;color:#bdbdbd}
+#auth-user .logout:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
 
 /* Menu drawer */
 #scrim{position:fixed;inset:var(--hdr) 0 0 0;background:rgba(0,0,0,.7);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -106,6 +110,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 #footer{border-top:1px solid var(--line);padding:12px 20px;font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
 @media (max-width:760px){
+  #auth-role{display:none}
   .layout{grid-template-columns:1fr}
   #search{width:auto;flex:1;max-width:none}
   .spacer{display:none}
@@ -135,7 +140,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
       <button type="submit" aria-label="Найти">&#9906;</button>
     </form>
     <div id="auth-guest"><a class="btn" href="#" onclick="telegramLogin();return false">Вход</a></div>
-    <div id="auth-user"><span id="auth-name" data-page="cabinet" style="cursor:pointer;text-decoration:underline" title="Кабинет"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
+    <div id="auth-user"><span id="auth-name" data-page="cabinet" title="Кабинет"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
   </header>
 
   <div id="notice" style="display:none;padding:10px 20px;background:#222;border-bottom:1px solid #e8e8e8;text-align:center"></div>
