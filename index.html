@@ -138,6 +138,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
     <div id="auth-user"><span id="auth-name" data-page="cabinet" style="cursor:pointer;text-decoration:underline" title="Кабинет"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
   </header>
 
+  <div id="notice" style="display:none;padding:10px 20px;background:#222;border-bottom:1px solid #e8e8e8;text-align:center"></div>
   <div id="scrim"></div>
   <nav id="nav" aria-label="Основное меню">
     <button class="nav-item active" data-page="home">Главная</button>
@@ -296,13 +297,15 @@ function telegramLogin(){
   var returnUrl=encodeURIComponent(origin+path+'callback.html');
   window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
 }
+function notice(t){var n=document.getElementById('notice');n.textContent=t;n.style.display=t?'block':'none'}
 async function onTelegramAuth(user){
+  notice('Вход…');
   try{
-    var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/bright-worker',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
-    var data=await res.json();
-    if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data)}
-    else{console.error('Auth failed:',data)}
-  }catch(e){console.error('Auth error:',e)}
+    var r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',user:user})});
+    var data=await r.json();
+    if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data);notice('')}
+    else notice('Ошибка входа: '+(data.error||data.message||r.status));
+  }catch(e){notice('Ошибка входа: нет связи с сервером ('+e.message+')')}
 }
 function applyAuth(data){
   window.CUR=data;
