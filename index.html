@@ -298,7 +298,7 @@ function telegramLogin(){
 }
 async function onTelegramAuth(user){
   try{
-    var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
+    var res=await fetch('https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/bright-worker',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});
     var data=await res.json();
     if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data)}
     else{console.error('Auth failed:',data)}
