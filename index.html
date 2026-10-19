@@ -121,12 +121,8 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .fm label{display:block;margin-top:8px;color:#bbb}
 .fm input,.fm select,.fm textarea{background:#000;color:#e8e8e8;border:1px solid #e8e8e8;font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:6px 0 12px}
 .art p{line-height:1.8}.alist{line-height:2}.alist a,.tbl a{color:#fff}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}.legend{color:#bbb;line-height:2}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;background:#888}
-.legend{margin:10px 0 18px;color:#bbb;line-height:1.9}
-#g-body h3{margin:22px 0 6px;font-family:var(--head)}
-.alist.plain{list-style:none;padding:0}
-.acs{border:1px solid #888;padding:8px 10px;margin:0 0 14px;color:#bbb;line-height:1.7}
 </style>
 </head>
 <body>
@@ -287,7 +283,7 @@ function openPage(id,np){
   if(!np)history.pushState(null,'',id==='home'?'/main':'/#'+id);
 }
 function openClass(c,el,np){
-  document.getElementById('g-title').textContent='Серия '+c+' · SCP-'+srRange(c);
+  document.getElementById('g-title').textContent='Объекты класса '+c;
   document.getElementById('g-sub').textContent='Список объектов';
   listView('object',c);
   show('generic');mark(el);setNav(false);
@@ -423,55 +419,44 @@ try{
   if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
 }catch(e){sessionStorage.removeItem('tg_callback')}
 /* ===== Статьи: маршрутизация, Полигон, очереди ===== */
-var STAT_RU={draft:'черновик',review:'на проверке',admin_rejected:'отклонено администратором',admin_approved:'одобрено, ждёт публикации',lead_rejected:'отклонено руководителем',published:'опубликовано'};
+var STAT_RU={draft:'черновик',submitted:'на проверке',admin_rejected:'отклонено администратором',admin_approved:'одобрено, ждёт публикации',lead_rejected:'отклонено руководителем',published:'опубликовано'};
 var KIND_RU={object:'Объект',story:'Рассказ',hub:'Хаб'};
 var EDITABLE=['draft','admin_rejected','lead_rejected'];
 function G(){return document.getElementById('g-body')}
 function V(i){return document.getElementById(i).value}
 function setG(t,s){document.getElementById('g-title').textContent=t;document.getElementById('g-sub').textContent=s}
-function srRange(c){return {I:'001–999',II:'1000–1999',III:'2000–2999',IV:'3000–3999',V:'4000–4999',VI:'5000–5999'}[c]||''}
-var ACS_L={
-  containment_class:['Класс содержания',{safe:'Безопасный (Safe)',euclid:'Евклид (Euclid)',keter:'Кетер (Keter)',thaumiel:'Таумиэль (Thaumiel)',esoteric:'Нестандартный',neutralized:'Нейтрализован',pending:'Не назначен',explained:'Объяснён'}],
-  secondary_class:['Вторичный класс',{apollyon:'Apollyon',archon:'Archon',cernunnos:'Cernunnos',hiemal:'Hiemal',tiamat:'Tiamat',ticonderoga:'Ticonderoga',uncontained:'Uncontained'}],
-  disruption_class:['Класс нарушения',{dark:'Dark',vlam:'Vlam',keneq:'Keneq',ekhi:'Ekhi',amida:'Amida'}],
-  risk_class:['Класс риска',{notice:'Notice',caution:'Caution',warning:'Warning',danger:'Danger',critical:'Critical'}]
-};
-var CCOL={safe:'#2ecc40',euclid:'#f1c40f',keter:'#e74c3c',thaumiel:'#9b59b6',esoteric:'#3498db'};
-var ERR_RU={bad_title:'номер объекта должен быть вида SCP-232 или SCP-232-NR (от 001 до 5999)',no_containment:'выберите класс содержания',empty:'заполните название и текст',locked:'статья уже отправлена, править нельзя',forbidden:'нет прав'};
-function kindLabel(a){return a.kind==='object'?'Объект · серия '+esc(a.series||'?'):KIND_RU[a.kind]}
-function dot(c){return '<span class="dot" style="background:'+(CCOL[c]||'#888')+'"></span>'}
-function acsHtml(a){
-  if(a.kind!=='object')return '';
-  var p=[];
-  Object.keys(ACS_L).forEach(function(k){if(a[k])p.push(ACS_L[k][0]+': <b>'+esc(ACS_L[k][1][a[k]]||a[k])+'</b>')});
-  return p.length?'<div class="acs">'+p.join('<br>')+'</div>':'';
-}
-function numOf(t){var m=/^SCP-(\d+)/i.exec(t||'');return m?+m[1]:1e9}
-function p3(n){return n<1000?String(n).padStart(3,'0'):String(n)}
-function objList(list){
-  list.sort(function(a,b){return numOf(a.title)-numOf(b.title)||a.title.localeCompare(b.title)});
-  var leg=[['#888','Не назначен или нейтрализован'],['#2ecc40','Безопасный'],['#f1c40f','Евклид'],['#e74c3c','Кетер'],['#9b59b6','Таумиэль'],['#3498db','Нестандартный класс']];
-  var h='<div class="legend">'+leg.map(function(x){return '<div><span class="dot" style="background:'+x[0]+'"></span> — '+x[1]+'</div>'}).join('')+'</div>',cur=null;
-  list.forEach(function(a){
-    var n=numOf(a.title),g=n===1e9?-1:Math.floor(n/100)*100;
-    if(g!==cur){if(cur!==null)h+='</ul>';cur=g;h+='<h3>'+(g<0?'Без номера':p3(g||1)+'–'+p3(g+99))+'</h3><ul class="alist plain">'}
-    h+='<li>'+dot(a.containment_class)+' <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+esc(a.title)+'</a>'+(a.subtitle?' — '+esc(a.subtitle):'')+'</li>';
-  });
-  return h+(cur!==null?'</ul>':'');
-}
+var ACS={
+ cont:{safe:'Safe',euclid:'Euclid',keter:'Keter',neutralized:'Neutralized',pending:'Pending',explained:'Explained',esoteric:'Esoteric'},
+ sec:{thaumiel:'Thaumiel',apollyon:'Apollyon',archon:'Archon',ticonderoga:'Ticonderoga',hiemal:'Hiemal',tiamat:'Tiamat',cernunnos:'Cernunnos',uncontained:'Uncontained'},
+ dis:{dark:'Dark',vlam:'Vlam',keneq:'Keneq',ekhi:'Ekhi',amida:'Amida'},
+ risk:{notice:'Notice',caution:'Caution',warning:'Warning',danger:'Danger',critical:'Critical'}};
+var SERIES={I:'001-999',II:'1000-1999',III:'2000-2999',IV:'3000-3999',V:'4000-4999',VI:'5000-5999'};
+var LEG=[['#888','Не назначен, нейтрализован или объяснён'],['#3cb043','Safe'],['#f0c020','Euclid'],['#e03c31','Keter'],['#9b59b6','Thaumiel'],['#4a90e2','Нестандартный класс']];
+function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
+function objName(a){return a.kind==='object'&&a.scp_code?esc(a.scp_code)+(a.title?' — '+esc(a.title):''):esc(a.title)}
+function kindLabel(a){return a.kind==='object'?'Объект'+(a.scp_code?' '+esc(a.scp_code):''):KIND_RU[a.kind]}
+function errText(d){var E={bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
+function acsBlock(a){var r=[['Класс содержания',ACS.cont[a.containment]],['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].filter(function(x){return x[1]});return r.length?'<table class="tbl">'+r.map(function(x){return'<tr><th>'+x[0]+'</th><td>'+x[1]+'</td></tr>'}).join('')+'</table>':''}
 function fmt(t){return esc(t).split(/\n{2,}/).map(function(p){p=p.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');return /^#\s/.test(p)?'<h2>'+p.slice(2)+'</h2>':'<p>'+p+'</p>'}).join('')}
-function artLink(a){return '<li><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+esc(a.title)+'</a>'+(a.subtitle?' — '+esc(a.subtitle):'')+'</li>'}
+function artLink(a){return '<li>'+(a.kind==='object'?'<span class="dot" style="background:'+dotColor(a)+'"></span>':'')+'<a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></li>'}
 
+function pad(n){return String(n).padStart(n<1000?3:4,'0')}
+function renderObjects(arr){
+  var h='<p class="legend">'+LEG.map(function(l){return'<span class="dot" style="background:'+l[0]+'"></span>'+l[1]}).join(' &nbsp; ')+'</p>',g={};
+  arr.forEach(function(a){var k=Math.floor((a.scp_num||0)/100);(g[k]=g[k]||[]).push(a)});
+  Object.keys(g).sort(function(x,y){return x-y}).forEach(function(k){k=Number(k);h+='<h3>'+pad(k*100||1)+'-'+pad(k*100+99)+'</h3><ul class="alist">'+g[k].map(artLink).join('')+'</ul>'});
+  return h;
+}
 async function listView(kind,cls,q){
   if(q)setG('Поиск: '+q,'Результаты');
-  else if(kind==='object')setG('Серия '+cls+' · SCP-'+srRange(cls),'Опубликованные объекты');
+  else if(kind==='object')setG('Объекты '+SERIES[cls],'Опубликованные объекты');
   else setG(kind==='story'?'Рассказы':'Хабы',kind==='story'?'Каталог':'Тематические подборки');
   var b=G();b.textContent='Загрузка…';
-  var p=q?{q:q}:{kind:kind};if(cls)p.series=cls;
+  var p=q?{q:q}:{kind:kind};if(cls&&!q)p.series=cls;
   var d=await api('articles',p);
   if(!d.ok){b.textContent='Ошибка загрузки';return}
-  if(!d.articles.length){b.innerHTML='<p>Пока ничего не опубликовано.</p>';return}
-  b.innerHTML=(kind==='object'&&!q)?objList(d.articles):'<ul class="alist">'+d.articles.map(artLink).join('')+'</ul>';
+  if(!d.articles.length)b.innerHTML='<p>Пока ничего не опубликовано.</p>';
+  else b.innerHTML=(kind==='object'&&!q)?renderObjects(d.articles):'<ul class="alist">'+d.articles.map(artLink).join('')+'</ul>';
 }
 
 async function openArticle(slug){
@@ -480,87 +465,77 @@ async function openArticle(slug){
   T.textContent='Загрузка…';M.textContent='';B.textContent='';
   var d=await api('article',{slug:slug});
   if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
-  var a=d.article;T.textContent=a.title;document.title=a.title+' — SCP Foundation';
-  M.textContent=(a.kind==='object'?'Объект · серия '+a.series+(a.subtitle?' · '+a.subtitle:''):KIND_RU[a.kind])+' · '+(a.published_at||'').slice(0,10);
-  B.innerHTML=acsHtml(a)+'<div class="art">'+fmt(a.body)+'</div>';
+  var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
+  M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
+  B.innerHTML=acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>';
 }
 
 /* Полигон */
 async function polyList(){
   var b=G();b.textContent='Загрузка…';
   var d=await api('my_articles');
-  if(!d.ok){b.textContent='Нет доступа или ошибка: '+(d.error||'');return}
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
   var h='<p><button class="mini" data-do="new">Новая статья</button></p>';
   if(!d.articles.length)h+='<p>У вас пока нет статей.</p>';
   else{
     h+='<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Статус</th><th>Замечание</th></tr>';
     d.articles.forEach(function(a){
-      h+='<tr><td><a href="#" data-do="edit" data-id="'+a.id+'">'+esc(a.title||'(без названия)')+'</a></td><td>'+kindLabel(a)+'</td><td>'+STAT_RU[a.status]+(a.slug?' · <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть</a>':'')+'</td><td>'+(a.status.indexOf('rejected')>0?esc(a.note):'')+'</td></tr>';
+      h+='<tr><td><a href="#" data-do="edit" data-id="'+a.id+'">'+(objName(a)||'(без названия)')+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+STAT_RU[a.status]+(a.slug?' · <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть</a>':'')+'</td><td>'+(a.status.indexOf('rejected')>0?esc(a.note):'')+'</td></tr>';
     });
     h+='</table></div>';
   }
   b.innerHTML=h;
 }
 function opts(list,val,lab){return list.map(function(x){return'<option value="'+x+'"'+(x===val?' selected':'')+'>'+(lab?lab[x]:x)+'</option>'}).join('')}
+function sel(id,map,val,ph,dis){return'<select id="'+id+'"'+dis+'><option value="">'+ph+'</option>'+opts(Object.keys(map),val,map)+'</select>'}
 async function polyEdit(id){
-  var b=G(),a={kind:'object',title:'',body:'',status:'draft'},rv=[];
-  if(id){b.textContent='Загрузка…';var d=await api('article_get',{id:id});if(!d.ok){b.textContent='Ошибка: '+d.error;return}a=d.article;rv=d.reviews}
+  var b=G(),a={kind:'object',scp_code:'',title:'',body:'',status:'draft'},rv=[];
+  if(id){b.textContent='Загрузка…';var d=await api('article_get',{id:id});if(!d.ok){b.textContent='Ошибка: '+errText(d);return}a=d.article;rv=d.reviews}
   window.EDID=id||null;
   var dis=EDITABLE.indexOf(a.status)<0?' disabled':'';
   var h='<p><button class="mini" data-do="back">← К списку</button> Статус: '+STAT_RU[a.status]+'</p>';
   rv.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
-  h+='<div class="fm"><label>Тип</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
+  h+='<div class="fm"><label>Тип статьи</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
+   +'<div id="e-obj"><label>Номер объекта (например SCP-173 или SCP-232-NR)</label><input id="e-code" maxlength="12" value="'+esc(a.scp_code||'')+'"'+dis+'></div>'
    +'<label id="e-tl"></label><input id="e-title" maxlength="200" value="'+esc(a.title)+'"'+dis+'>'
-   +'<div id="e-obj"><p id="e-ser" class="note"></p>'
-   +'<label>Название объекта (необязательно), например «Живая» комната</label><input id="e-sub" maxlength="200" value="'+esc(a.subtitle||'')+'"'+dis+'>';
-  Object.keys(ACS_L).forEach(function(k){
-    var lab=ACS_L[k][1],keys=Object.keys(lab),req=k==='containment_class';
-    h+='<label>'+ACS_L[k][0]+(req?' (обязательно)':' (необязательно)')+'</label><select id="e-'+k+'"'+dis+'><option value="">'+(req?'— выберите —':'— нет —')+'</option>'+opts(keys,a[k],lab)+'</select>';
-  });
-  h+='</div><label>Текст (пустая строка — новый абзац, **жирный**, «# » в начале абзаца — заголовок)</label><textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea>';
+   +'<div id="e-acs"><label>Класс содержания (ACS)</label>'+sel('e-cont',ACS.cont,a.containment,'— выберите —',dis)
+   +'<label>Вторичный класс (необязательно)</label>'+sel('e-sec',ACS.sec,a.secondary,'—',dis)
+   +'<label>Класс нарушения (необязательно)</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
+   +'<label>Класс риска (необязательно)</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
+   +'<label>Текст (пустая строка — новый абзац, **жирный**, «# » в начале абзаца — заголовок)</label><textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea>';
   if(!dis)h+='<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
   b.innerHTML=h+'</div><p id="e-msg"></p>';
-  var k=document.getElementById('e-kind'),t=document.getElementById('e-title');
-  function ser(){
-    var m=/^SCP-(\d{3}|[1-9]\d{3})(?:-[A-Z0-9А-ЯЁ]+)*$/.exec(t.value.trim().toUpperCase()),n=m?+m[1]:0,i=Math.floor(n/1000);
-    document.getElementById('e-ser').textContent=(n>=1&&n<=5999)?'Серия: '+['I','II','III','IV','V','VI'][i]+' (определяется по номеру)':'Серия определится по номеру объекта';
-  }
-  function sync(){
-    var o=k.value==='object';
-    document.getElementById('e-obj').style.display=o?'block':'none';
-    document.getElementById('e-tl').textContent=o?'Номер объекта (например SCP-232-NR или SCP-1000)':k.value==='story'?'Название рассказа':'Название хаба';
-    t.placeholder=o?'SCP-232-NR':'';
-    ser();
-  }
-  k.onchange=sync;t.oninput=ser;sync();
+  var k=document.getElementById('e-kind');
+  function sync(){var o=k.value==='object';document.getElementById('e-obj').style.display=o?'block':'none';document.getElementById('e-acs').style.display=o?'block':'none';
+    document.getElementById('e-tl').textContent={object:'Название объекта (например: Скульптура)',story:'Название рассказа',hub:'Название хаба'}[k.value]}
+  k.onchange=sync;sync();
 }
 async function polySave(){
-  var m=document.getElementById('e-msg'),p={id:window.EDID,kind:V('e-kind'),title:V('e-title'),body:V('e-body')};
-  if(p.kind==='object'){p.subtitle=V('e-sub');Object.keys(ACS_L).forEach(function(k){p[k]=V('e-'+k)})}
-  var d=await api('article_save',p);
-  if(!d.ok){m.textContent='Ошибка: '+(ERR_RU[d.error]||d.error||'');return false}
+  var m=document.getElementById('e-msg');
+  var d=await api('article_save',{id:window.EDID,kind:V('e-kind'),scp_code:V('e-code'),title:V('e-title'),containment:V('e-cont'),secondary:V('e-sec'),disruption:V('e-dis'),risk:V('e-risk'),body:V('e-body')});
+  if(!d.ok){m.textContent='Ошибка: '+errText(d);return false}
   window.EDID=d.id;m.textContent='Сохранено';return true;
 }
 async function polySubmit(){
   if(!(await polySave()))return;
   var d=await api('article_submit',{id:window.EDID});
-  if(d.ok)polyList();else document.getElementById('e-msg').textContent='Ошибка: '+(ERR_RU[d.error]||d.error);
+  if(d.ok)polyList();else document.getElementById('e-msg').textContent='Ошибка: '+errText(d);
 }
 
 /* Очереди проверки и публикации */
 async function queueView(stage){
   var b=G();b.textContent='Загрузка…';
   var d=await api('queue',{stage:stage});
-  if(!d.ok){b.textContent='Нет доступа или ошибка: '+(d.error||'');return}
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
   b.innerHTML=d.articles.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Автор</th><th></th></tr>'+d.articles.map(function(a){
-    return'<tr><td>'+esc(a.title)+'</td><td>'+kindLabel(a)+'</td><td>'+esc(a.author_name)+'</td><td><button class="mini" data-do="open" data-id="'+a.id+'" data-stage="'+stage+'">Открыть</button></td></tr>'}).join('')+'</table></div>':'<p>Очередь пуста.</p>';
+    return'<tr><td>'+objName(a)+'</td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td><button class="mini" data-do="open" data-id="'+a.id+'" data-stage="'+stage+'">Открыть</button></td></tr>'}).join('')+'</table></div>':'<p>Очередь пуста.</p>';
 }
 async function reviewView(id,stage){
   var b=G();b.textContent='Загрузка…';
   var d=await api('article_get',{id:id});
   if(!d.ok){b.textContent='Ошибка: '+(d.error||'');return}
   var a=d.article;window.RV={id:id,stage:stage};
-  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+esc(a.title)+'</h2><p>'+kindLabel(a)+(a.subtitle?' · '+esc(a.subtitle):'')+' · автор '+esc(a.author_name)+'</p>'+acsHtml(a)+'<div class="art">'+fmt(a.body)+'</div>';
+  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p>'+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>';
   d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Комментарий (при отклонении обязателен)</label><textarea id="r-com" rows="4"></textarea>';
   if(stage==='lead')h+='<label>Ссылка (пусто — создаётся из названия), например scp-232-nr</label><input id="r-slug" maxlength="80">';
@@ -571,7 +546,7 @@ async function doReview(o){
   var m=document.getElementById('r-msg'),R=window.RV,d;
   if(o==='pub')d=await api('publish',{id:R.id,slug:V('r-slug')});
   else d=await api('review',{id:R.id,decision:o==='rv-ok'?'approved':'rejected',comment:V('r-com')});
-  if(!d.ok){var E={comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился'};m.textContent='Ошибка: '+(E[d.error]||d.error);return}
+  if(!d.ok){m.textContent='Ошибка: '+errText(d);return}
   if(o==='pub')alert('Опубликовано: '+location.origin+'/'+d.slug);
   queueView(R.stage);
 }
