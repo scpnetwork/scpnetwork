@@ -122,6 +122,11 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .fm input,.fm select,.fm textarea{background:#000;color:#e8e8e8;border:1px solid #e8e8e8;font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:6px 0 12px}
 .art p{line-height:1.8}.alist{line-height:2}.alist a,.tbl a{color:#fff}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}.legend{color:#bbb;line-height:2}
+.pfx{display:flex;align-items:center;border:1px solid #e8e8e8;margin:6px 0 12px}.pfx span{padding:0 8px;color:#bbb}.pfx input{border:0!important;margin:0!important;flex:1}
+.mdbar{margin:6px 0;line-height:2.2}
+.art blockquote{border-left:3px solid #888;margin:12px 0;padding:4px 14px;color:#bbb}.art code{background:#1a1a1a;padding:1px 5px}
+.art pre{background:#111;border:1px solid #444;padding:10px;overflow-x:auto}.art pre code{padding:0;background:none}
+.art hr{border:0;border-top:1px solid #666}.art li{line-height:1.8}.art a{color:#fff}.art table{margin:10px 0}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
 </style>
 </head>
@@ -426,18 +431,43 @@ function G(){return document.getElementById('g-body')}
 function V(i){return document.getElementById(i).value}
 function setG(t,s){document.getElementById('g-title').textContent=t;document.getElementById('g-sub').textContent=s}
 var ACS={
- cont:{safe:'Safe',euclid:'Euclid',keter:'Keter',neutralized:'Neutralized',pending:'Pending',explained:'Explained',esoteric:'Esoteric'},
- sec:{thaumiel:'Thaumiel',apollyon:'Apollyon',archon:'Archon',ticonderoga:'Ticonderoga',hiemal:'Hiemal',tiamat:'Tiamat',cernunnos:'Cernunnos',uncontained:'Uncontained'},
- dis:{dark:'Dark',vlam:'Vlam',keneq:'Keneq',ekhi:'Ekhi',amida:'Amida'},
- risk:{notice:'Notice',caution:'Caution',warning:'Warning',danger:'Danger',critical:'Critical'}};
+ cont:{safe:'Безопасный',euclid:'Евклид',keter:'Кетер',neutralized:'Нейтрализован',pending:'Ожидает присвоения',explained:'Объяснён',esoteric:'Эзотерический'},
+ sec:{thaumiel:'Таумиэль',apollyon:'Аполлион',archon:'Архонт',ticonderoga:'Тикондерога',hiemal:'Хиемаль',tiamat:'Тиамат',cernunnos:'Кернуннос',uncontained:'Не содержится'},
+ dis:{dark:'Тёмный',vlam:'Влам',keneq:'Кенек',ekhi:'Эхи',amida:'Амида'},
+ risk:{notice:'Уведомление',caution:'Осторожность',warning:'Предупреждение',danger:'Опасность',critical:'Критический'}};
 var SERIES={I:'001-999',II:'1000-1999',III:'2000-2999',IV:'3000-3999',V:'4000-4999',VI:'5000-5999'};
-var LEG=[['#888','Не назначен, нейтрализован или объяснён'],['#3cb043','Safe'],['#f0c020','Euclid'],['#e03c31','Keter'],['#9b59b6','Thaumiel'],['#4a90e2','Нестандартный класс']];
+var LEG=[['#888','Не назначен, нейтрализован или объяснён'],['#3cb043','Безопасный'],['#f0c020','Евклид'],['#e03c31','Кетер'],['#9b59b6','Таумиэль'],['#4a90e2','Нестандартный класс']];
 function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
 function objName(a){return a.kind==='object'&&a.scp_code?esc(a.scp_code)+(a.title?' — '+esc(a.title):''):esc(a.title)}
 function kindLabel(a){return a.kind==='object'?'Объект'+(a.scp_code?' '+esc(a.scp_code):''):KIND_RU[a.kind]}
-function errText(d){var E={bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
+function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
 function acsBlock(a){var r=[['Класс содержания',ACS.cont[a.containment]],['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].filter(function(x){return x[1]});return r.length?'<table class="tbl">'+r.map(function(x){return'<tr><th>'+x[0]+'</th><td>'+x[1]+'</td></tr>'}).join('')+'</table>':''}
-function fmt(t){return esc(t).split(/\n{2,}/).map(function(p){p=p.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');return /^#\s/.test(p)?'<h2>'+p.slice(2)+'</h2>':'<p>'+p+'</p>'}).join('')}
+function inl(t){return t.split(/(`[^`]+`)/).map(function(p,i){
+  if(i%2)return'<code>'+p.slice(1,-1)+'</code>';
+  p=p.replace(/\[([^\]]+)\]\(\s*([^)\s]+)\s*\)/g,function(m,x,u){
+    if(/^\/[a-z0-9-]+$/.test(u))return'<a href="'+u+'" data-slug="'+u.slice(1)+'">'+x+'</a>';
+    if(/^https?:\/\/[^\s]+$/.test(u))return'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+x+'</a>';
+    return m});
+  return p.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/~~(.+?)~~/g,'<s>$1</s>')}).join('')}
+function mdTable(r){var cells=function(x){return x.trim().replace(/^\||\|$/g,'').split('|').map(function(c){return inl(esc(c.trim()))})};
+  var hd=r.length>1&&/^\|[\s:|-]+\|$/.test(r[1].trim())&&/-/.test(r[1]),h='<div style="overflow-x:auto"><table class="tbl">',k=0;
+  if(hd){h+='<tr>'+cells(r[0]).map(function(c){return'<th>'+c+'</th>'}).join('')+'</tr>';k=2}
+  for(;k<r.length;k++)h+='<tr>'+cells(r[k]).map(function(c){return'<td>'+c+'</td>'}).join('')+'</tr>';
+  return h+'</table></div>'}
+function fmt(src){var L=String(src).replace(/\r/g,'').split('\n'),o=[],i=0,l,m;
+  while(i<L.length){l=L[i];
+    if(/^\s*$/.test(l)){i++;continue}
+    if(/^```/.test(l)){var c=[];i++;while(i<L.length&&!/^```/.test(L[i]))c.push(L[i++]);i++;o.push('<pre><code>'+esc(c.join('\n'))+'</code></pre>');continue}
+    if(m=/^(#{1,3})\s+(.*)$/.exec(l)){var n=m[1].length+1;o.push('<h'+n+'>'+inl(esc(m[2]))+'</h'+n+'>');i++;continue}
+    if(/^\s*(-{3,}|\*{3,})\s*$/.test(l)){o.push('<hr>');i++;continue}
+    if(/^>\s?/.test(l)){var q=[];while(i<L.length&&/^>\s?/.test(L[i]))q.push(L[i++].replace(/^>\s?/,''));o.push('<blockquote>'+inl(esc(q.join('\n'))).replace(/\n/g,'<br>')+'</blockquote>');continue}
+    if(/^\s*[-*]\s+/.test(l)){var u=[];while(i<L.length&&/^\s*[-*]\s+/.test(L[i]))u.push('<li>'+inl(esc(L[i++].replace(/^\s*[-*]\s+/,'')))+'</li>');o.push('<ul>'+u.join('')+'</ul>');continue}
+    if(/^\s*\d+[.)]\s+/.test(l)){var w=[];while(i<L.length&&/^\s*\d+[.)]\s+/.test(L[i]))w.push('<li>'+inl(esc(L[i++].replace(/^\s*\d+[.)]\s+/,'')))+'</li>');o.push('<ol>'+w.join('')+'</ol>');continue}
+    if(/^\|.*\|\s*$/.test(l)){var r=[];while(i<L.length&&/^\|.*\|\s*$/.test(L[i]))r.push(L[i++]);o.push(mdTable(r));continue}
+    var p=[];while(i<L.length&&!/^\s*$/.test(L[i])&&!/^(```|#{1,3}\s|>|\s*[-*]\s|\s*\d+[.)]\s|\||-{3,}\s*$)/.test(L[i]))p.push(L[i++]);
+    if(!p.length)p.push(L[i++]);
+    o.push('<p>'+inl(esc(p.join('\n'))).replace(/\n/g,'<br>')+'</p>')}
+  return o.join('')}
 function artLink(a){return '<li>'+(a.kind==='object'?'<span class="dot" style="background:'+dotColor(a)+'"></span>':'')+'<a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></li>'}
 
 function pad(n){return String(n).padStart(n<1000?3:4,'0')}
@@ -496,23 +526,28 @@ async function polyEdit(id){
   var h='<p><button class="mini" data-do="back">← К списку</button> Статус: '+STAT_RU[a.status]+'</p>';
   rv.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Тип статьи</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
-   +'<div id="e-obj"><label>Номер объекта (например SCP-173 или SCP-232-NR)</label><input id="e-code" maxlength="12" value="'+esc(a.scp_code||'')+'"'+dis+'></div>'
+   +'<div id="e-obj"><label>Номер объекта</label><div class="pfx"><span>SCP-</span><input id="e-code" maxlength="8" value="'+esc((a.scp_code||'').replace(/^SCP-/,''))+'"'+dis+'></div></div>'
    +'<label id="e-tl"></label><input id="e-title" maxlength="200" value="'+esc(a.title)+'"'+dis+'>'
-   +'<div id="e-acs"><label>Класс содержания (ACS)</label>'+sel('e-cont',ACS.cont,a.containment,'— выберите —',dis)
-   +'<label>Вторичный класс (необязательно)</label>'+sel('e-sec',ACS.sec,a.secondary,'—',dis)
-   +'<label>Класс нарушения (необязательно)</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
-   +'<label>Класс риска (необязательно)</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
-   +'<label>Текст (пустая строка — новый абзац, **жирный**, «# » в начале абзаца — заголовок)</label><textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea>';
+   +'<div id="e-acs"><label>Класс содержания</label>'+sel('e-cont',ACS.cont,a.containment,'— выберите —',dis)
+   +'<label>Вторичный класс</label>'+sel('e-sec',ACS.sec,a.secondary,'—',dis)
+   +'<label>Класс нарушения</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
+   +'<label>Класс риска</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
+   +'<label>Текст</label>'+(dis?'':MDBAR)+'<textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea>';
   if(!dis)h+='<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
   b.innerHTML=h+'</div><p id="e-msg"></p>';
   var k=document.getElementById('e-kind');
   function sync(){var o=k.value==='object';document.getElementById('e-obj').style.display=o?'block':'none';document.getElementById('e-acs').style.display=o?'block':'none';
-    document.getElementById('e-tl').textContent={object:'Название объекта (например: Скульптура)',story:'Название рассказа',hub:'Название хаба'}[k.value]}
+    document.getElementById('e-tl').textContent={object:'Название объекта',story:'Название рассказа',hub:'Название хаба'}[k.value]}
   k.onchange=sync;sync();
 }
+function codeVal(){var c=V('e-code').trim().toUpperCase().replace(/^SCP-/,'');return c?'SCP-'+c:''}
+var MD={b:['**','**','текст'],i:['*','*','текст'],s:['~~','~~','текст'],c:['`','`','код'],h:['## ','','Заголовок'],l:['- ','','пункт'],n:['1. ','','пункт'],q:['> ','','цитата'],k:['[','](https://)','текст'],r:['\n---\n','',''],f:['\n```\n','\n```\n','код'],t:['\n| Колонка 1 | Колонка 2 |\n| --- | --- |\n| ','  |  |\n','текст']};
+var MDBAR='<div class="mdbar">'+[['b','Ж'],['i','К'],['s','Зачёркнутый'],['c','Код'],['h','Заголовок'],['l','Список'],['n','Нумерация'],['q','Цитата'],['k','Ссылка'],['r','Линия'],['f','Блок кода'],['t','Таблица']].map(function(x){return'<button type="button" class="mini" data-md="'+x[0]+'">'+x[1]+'</button>'}).join(' ')+'</div>';
+function applyMd(k){var ta=document.getElementById('e-body'),m=MD[k],s=ta.selectionStart,e=ta.selectionEnd,t=ta.value.slice(s,e)||m[2];
+  ta.value=ta.value.slice(0,s)+m[0]+t+m[1]+ta.value.slice(e);ta.focus();ta.selectionStart=s+m[0].length;ta.selectionEnd=s+m[0].length+t.length}
 async function polySave(){
   var m=document.getElementById('e-msg');
-  var d=await api('article_save',{id:window.EDID,kind:V('e-kind'),scp_code:V('e-code'),title:V('e-title'),containment:V('e-cont'),secondary:V('e-sec'),disruption:V('e-dis'),risk:V('e-risk'),body:V('e-body')});
+  var d=await api('article_save',{id:window.EDID,kind:V('e-kind'),scp_code:codeVal(),title:V('e-title'),containment:V('e-cont'),secondary:V('e-sec'),disruption:V('e-dis'),risk:V('e-risk'),body:V('e-body')});
   if(!d.ok){m.textContent='Ошибка: '+errText(d);return false}
   window.EDID=d.id;m.textContent='Сохранено';return true;
 }
@@ -537,8 +572,8 @@ async function reviewView(id,stage){
   var a=d.article;window.RV={id:id,stage:stage};
   var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p>'+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>';
   d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
-  h+='<div class="fm"><label>Комментарий (при отклонении обязателен)</label><textarea id="r-com" rows="4"></textarea>';
-  if(stage==='lead')h+='<label>Ссылка (пусто — создаётся из названия), например scp-232-nr</label><input id="r-slug" maxlength="80">';
+  h+='<div class="fm"><label>Комментарий</label><textarea id="r-com" rows="4"></textarea>';
+  if(stage==='lead')h+='<label>Ссылка</label><input id="r-slug" maxlength="80">';
   h+=(stage==='lead'?'<button class="mini" data-do="pub">Опубликовать</button> ':'<button class="mini" data-do="rv-ok">Одобрить</button> ')+'<button class="mini" data-do="rv-no">Отклонить</button></div><p id="r-msg"></p>';
   b.innerHTML=h;
 }
@@ -551,7 +586,7 @@ async function doReview(o){
   queueView(R.stage);
 }
 G().addEventListener('click',function(e){
-  var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
+  var md=e.target.closest('[data-md]');if(md){e.preventDefault();applyMd(md.dataset.md);return}var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
   if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')polyList();
   else if(o==='save')polySave();else if(o==='submit')polySubmit();
   else if(o==='open')reviewView(b.dataset.id,b.dataset.stage);else if(o==='qback')queueView(b.dataset.stage);
