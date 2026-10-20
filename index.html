@@ -619,13 +619,13 @@ async function reviewView(id,stage){
   var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p>'+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>'+authBlock(a);
   d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Комментарий</label><textarea id="r-com" rows="4"></textarea>';
-  if(stage==='lead')h+='<label>Ссылка</label><input id="r-slug" maxlength="80">';
+  if(stage==='lead')h+='<label>Ссылка</label><div class="pfx"><span>'+esc(location.host)+'/</span><input id="r-slug" maxlength="80" value="'+esc((a.scp_code||'').toLowerCase())+'"></div>';
   h+=(stage==='lead'?'<button class="mini" data-do="pub">Опубликовать</button> ':'<button class="mini" data-do="rv-ok">Одобрить</button> ')+'<button class="mini" data-do="rv-no">Отклонить</button></div><p id="r-msg"></p>';
   b.innerHTML=h;
 }
 async function doReview(o){
   var m=document.getElementById('r-msg'),R=window.RV,d;
-  if(o==='pub')d=await api('publish',{id:R.id,slug:V('r-slug')});
+  if(o==='pub')d=await api('publish',{id:R.id,slug:V('r-slug').trim().toLowerCase().replace(/^https?:\/\/[^\/]+/,'').replace(/[?#].*$/,'').replace(/^\/+|\/+$/g,'')});
   else d=await api('review',{id:R.id,decision:o==='rv-ok'?'approved':'rejected',comment:V('r-com')});
   if(!d.ok){m.textContent='Ошибка: '+errText(d);return}
   if(o==='pub')alert('Опубликовано: '+location.origin+'/'+d.slug);
