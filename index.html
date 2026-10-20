@@ -131,6 +131,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .coll summary::-webkit-details-marker{display:none}.coll summary::before{content:"▸ "}.coll[open] summary::before{content:"▾ "}
 .coll .s-hide{display:none}.coll[open] .s-show{display:none}.coll[open] .s-hide{display:inline}.coll-in{padding:6px 14px;border-top:1px solid #444}
 #e-prev{margin-top:14px}
+.afoot{border-top:1px solid #666;margin-top:28px;padding-top:10px;line-height:1.8}.adate{color:#bbb;margin-top:10px}.aopts{text-align:right;margin-top:12px}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
 </style>
 </head>
@@ -221,7 +222,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
     </section>
     <section class="tab" id="tab-article">
       <h1 id="a-title"></h1>
-      <div class="box"><h2 id="a-meta"></h2><div class="in" id="a-body"></div></div>
+      <div id="a-body"></div><div id="a-meta" hidden></div>
     </section>
   </main>
 
@@ -441,6 +442,7 @@ var ACS={
  sec:{thaumiel:'Таумиэль',apollyon:'Аполлион',archon:'Архонт',ticonderoga:'Тикондерога',hiemal:'Хиемаль',tiamat:'Тиамат',cernunnos:'Кернуннос',uncontained:'Не содержится'},
  dis:{dark:'Тёмный',vlam:'Влам',keneq:'Кенек',ekhi:'Эхи',amida:'Амида'},
  risk:{notice:'Уведомление',caution:'Осторожность',warning:'Предупреждение',danger:'Опасность',critical:'Критический'}};
+var ROM=['','I','II','III','IV','V','VI'];
 var SERIES={I:'001-999',II:'1000-1999',III:'2000-2999',IV:'3000-3999',V:'4000-4999',VI:'5000-5999'};
 var LEG=[['#888','Не назначен, нейтрализован или объяснён'],['#3cb043','Безопасный'],['#f0c020','Евклид'],['#e03c31','Кетер'],['#9b59b6','Таумиэль'],['#4a90e2','Нестандартный класс']];
 function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
@@ -509,10 +511,21 @@ async function openArticle(slug){
   if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
   var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
   M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
-  B.innerHTML=(isLead()?artBar(a):'')+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>'+authBlock(a);
+  B.innerHTML='<div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead());
 }
 
 /* Полигон */
+function artFoot(a,bar){
+  var n=/^SCP-(\d+)/.exec(a.scp_code||''),r=[['Тип',a.kind==='object'?'Объект':KIND_RU[a.kind]]];
+  if(a.kind==='object'){
+    if(n)r.push(['Серия',ROM[Math.floor(Number(n[1])/1000)+1]+' ('+SERIES[ROM[Math.floor(Number(n[1])/1000)+1]]+')']);
+    if(a.containment)r.push(['Класс содержания','<span class="dot" style="background:'+dotColor(a)+'"></span>'+ACS.cont[a.containment]]);
+    [['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].forEach(function(x){if(x[1])r.push(x)});
+  }
+  var h='<div class="afoot">'+r.map(function(x){return'<div><b>'+x[0]+':</b> '+x[1]+'</div>'}).join('')+'</div>'+authBlock(a);
+  if(a.published_at)h+='<div class="adate">Опубликовано: '+a.published_at.slice(0,10)+(a.updated_at&&a.updated_at.slice(0,16)>a.published_at.slice(0,16)?'. Последняя правка: '+a.updated_at.slice(0,16).replace('T',' '):'')+'</div>';
+  return h+(bar?'<div class="aopts">'+artBar(a)+'</div>':'');
+}
 function authBlock(a){
   var h='<div class="note"><b>Авторство и лицензия</b><br>';
   if(a.origin==='translation')h+='Оригинал: '+(a.orig_title?'«'+esc(a.orig_title)+'» — ':'')+'автор '+esc(a.orig_author)+', <a href="'+esc(a.orig_url)+'" target="_blank" rel="noopener noreferrer">источник</a><br>Перевод: '+esc(a.author_name)+'<br>';
@@ -616,7 +629,7 @@ async function reviewView(id,stage){
   var d=await api('article_get',{id:id});
   if(!d.ok){b.textContent='Ошибка: '+(d.error||'');return}
   var a=d.article;window.RV={id:id,stage:stage};
-  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p>'+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>'+authBlock(a);
+  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p><div class="art">'+fmt(a.body)+'</div>'+artFoot(a);
   d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Комментарий</label><textarea id="r-com" rows="4"></textarea>';
   if(stage==='lead')h+='<label>Ссылка</label><div class="pfx"><span>'+esc(location.host)+'/</span><input id="r-slug" maxlength="80" value="'+esc((a.scp_code||'').toLowerCase())+'"></div>';
