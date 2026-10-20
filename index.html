@@ -616,6 +616,67 @@ G().addEventListener('click',async function(e){
   else doReview(o);
 });
 
+/* Заявки и пользователи */
+var ST_RU={pending:'ожидает',approved:'принят',rejected:'отклонён'};
+window.UF=window.UF||'';window.UQ='';window.USERS=[];
+async function renderUsers(){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('users');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  window.USERS=d.users;
+  if(!window.UF)window.UF=d.users.some(function(u){return u.status==='pending'})?'pending':'all';
+  window.UQ='';drawUsers();
+}
+function drawUsers(){
+  var U=window.USERS,cnt={all:U.length,pending:0,approved:0,rejected:0};
+  U.forEach(function(u){cnt[u.status]++});
+  var T=[['pending','Ожидают'],['approved','Приняты'],['rejected','Отклонены'],['all','Все']];
+  var h='<p>'+T.map(function(t){return'<button class="mini" data-uf="'+t[0]+'"'+(window.UF===t[0]?' style="background:#e8e8e8;color:#000"':'')+'>'+t[1]+' ('+cnt[t[0]]+')</button>'}).join(' ')+'</p>'
+   +'<div class="fm"><input id="u-q" placeholder="Поиск по нику или имени" value="'+esc(window.UQ)+'"></div><div id="u-tbl"></div>';
+  G().innerHTML=h;drawUsersTable();
+}
+function drawUsersTable(){
+  var lead=isLead(),me=window.CUR&&window.CUR.telegram?String(window.CUR.telegram.id):'',q=window.UQ.toLowerCase();
+  var L=window.USERS.filter(function(u){
+    if(window.UF!=='all'&&u.status!==window.UF)return false;
+    return !q||((u.username||'')+' '+(u.first_name||'')).toLowerCase().indexOf(q)>=0;
+  });
+  if(!L.length){document.getElementById('u-tbl').innerHTML='<p>Никого нет.</p>';return}
+  var h='<div style="overflow-x:auto"><table class="tbl"><tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th>Последний вход</th><th></th></tr>';
+  L.forEach(function(u){
+    var id=u.telegram_id,mine=String(id)===me,isl=u.role==='lead';
+    var nm=u.username?'<a href="https://t.me/'+esc(u.username)+'" target="_blank" rel="noopener noreferrer">@'+esc(u.username)+'</a>':esc(u.first_name||id);
+    var rc=ROLE_RU[u.role]||u.role;
+    if(lead&&!isl&&!mine)rc='<select class="rsel2" data-uid="'+id+'">'+['reader','author','admin','lead'].map(function(r){return'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+ROLE_RU[r]+'</option>'}).join('')+'</select>';
+    var act='';
+    if(!isl&&!mine){
+      if(u.status==='pending'){act='<button class="mini" data-ua="approved" data-id="'+id+'">Принять</button> '+(lead?'<button class="mini" data-ua="author" data-id="'+id+'">Принять автором</button> ':'')+'<button class="mini" data-ua="rejected" data-id="'+id+'">Отклонить</button>'}
+      else if(u.status==='approved')act='<button class="mini" data-ua="rejected" data-id="'+id+'">Заблокировать</button>';
+      else act='<button class="mini" data-ua="approved" data-id="'+id+'">Вернуть</button>';
+    }
+    h+='<tr><td>'+nm+(mine?' (вы)':'')+'<br><small>ID '+id+'</small></td><td>'+rc+'</td><td>'+ST_RU[u.status]+'</td><td>'+(u.created_at||'').slice(0,10)+'</td><td>'+(u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—')+'</td><td>'+act+'</td></tr>';
+  });
+  document.getElementById('u-tbl').innerHTML=h+'</table></div>';
+}
+async function userAct(id,act){
+  var d;
+  if(act==='author'){d=await api('set_status',{id:id,status:'approved'});if(d.ok)d=await api('set_role',{id:id,role:'author'})}
+  else d=await api('set_status',{id:id,status:act});
+  if(!d.ok)alert('Ошибка: '+errText(d));
+  await renderUsers();
+}
+G().addEventListener('click',function(e){
+  var f=e.target.closest('[data-uf]');if(f){window.UF=f.dataset.uf;drawUsers();return}
+  var a=e.target.closest('[data-ua]');if(a)userAct(a.dataset.id,a.dataset.ua);
+});
+G().addEventListener('input',function(e){if(e.target.id==='u-q'){window.UQ=e.target.value;drawUsersTable()}});
+G().addEventListener('change',async function(e){
+  var sel=e.target.closest('.rsel2');if(!sel)return;
+  var d=await api('set_role',{id:sel.dataset.uid,role:sel.value});
+  if(!d.ok)alert('Ошибка: '+errText(d));
+  renderUsers();
+});
+
 /* Ссылки на статьи и маршрутизация по адресу */
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-art]');if(t){e.preventDefault();artAct(t.dataset.art,t.dataset.id);return}var a=e.target.closest('a[data-slug]');if(!a)return;
