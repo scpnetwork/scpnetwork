@@ -516,15 +516,9 @@ async function openArticle(slug){
 
 /* Полигон */
 function artFoot(a,bar){
-  var n=/^SCP-(\d+)/.exec(a.scp_code||''),r=[['Тип',a.kind==='object'?'Объект':KIND_RU[a.kind]]];
-  if(a.kind==='object'){
-    if(n)r.push(['Серия',ROM[Math.floor(Number(n[1])/1000)+1]+' ('+SERIES[ROM[Math.floor(Number(n[1])/1000)+1]]+')']);
-    if(a.containment)r.push(['Класс содержания','<span class="dot" style="background:'+dotColor(a)+'"></span>'+ACS.cont[a.containment]]);
-    [['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].forEach(function(x){if(x[1])r.push(x)});
-  }
-  var h='<div class="afoot">'+r.map(function(x){return'<div><b>'+x[0]+':</b> '+x[1]+'</div>'}).join('')+'</div>'+authBlock(a);
+  var h=authBlock(a);
   if(a.published_at)h+='<div class="adate">Опубликовано: '+a.published_at.slice(0,10)+(a.updated_at&&a.updated_at.slice(0,16)>a.published_at.slice(0,16)?'. Последняя правка: '+a.updated_at.slice(0,16).replace('T',' '):'')+'</div>';
-  return h+(bar?'<div class="aopts">'+artBar(a)+'</div>':'');
+  return '<div class="afoot">'+h+(bar?'<div class="aopts">'+artBar(a)+'</div>':'')+'</div>';
 }
 function authBlock(a){
   var h='<div class="note"><b>Авторство и лицензия</b><br>';
