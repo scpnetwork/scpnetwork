@@ -167,6 +167,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
       <button class="nav-item" data-page="moderation" data-min="3">Модерация</button>
       <button class="nav-item" data-page="users" data-min="3">Заявки и пользователи</button>
       <button class="nav-item" data-page="publish" data-min="4">На публикацию</button>
+      <button class="nav-item" data-page="manage" data-min="4">Публикации</button>
     </div>
     <button class="nav-item" data-page="authors">Для новых авторов</button>
     <div class="nav-sep"></div>
@@ -234,6 +235,7 @@ var PAGES = {
   review:{t:'Проверка статей',s:'Очередь',b:'<p>Статьи со статусом «завершено»: принять или отклонить с обратной связью.</p>'+WIP},
   moderation:{t:'Модерация',s:'Комментарии и оценки',b:WIP},
   publish:{t:'На публикацию',s:'Одобрено администраторами',b:'<p>Выпустить статью или отклонить с комментарием.</p>'+WIP},
+  manage:{t:'Публикации',s:'Опубликованные статьи',b:''},
   users:{t:'Заявки и пользователи',s:'Все входы на сайт',b:''},
   stories:{t:'Рассказы',s:'Каталог',b:WIP},
   hubs:{t:'Хабы',s:'Тематические подборки',b:WIP},
@@ -281,7 +283,7 @@ function openPage(id,np){
     document.getElementById('g-body').innerHTML=p.b;
     show('generic');
     if(id==='users')renderUsers();
-    if(id==='polygon')polyList();if(id==='review')queueView('admin');if(id==='publish')queueView('lead');if(id==='stories')listView('story');if(id==='hubs')listView('hub');
+    if(id==='polygon')polyList();if(id==='review')queueView('admin');if(id==='publish')queueView('lead');if(id==='manage')manageList();if(id==='stories')listView('story');if(id==='hubs')listView('hub');
   }
   mark(document.querySelector('#nav .nav-item[data-page="'+id+'"]'));
   setNav(false);
@@ -497,20 +499,40 @@ async function openArticle(slug){
   if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
   var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
   M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
-  B.innerHTML=acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>';
+  B.innerHTML=(isLead()?artBar(a):'')+acsBlock(a)+'<div class="art">'+fmt(a.body)+'</div>';
 }
 
 /* Полигон */
-async function polyList(){
+function isLead(){var c=window.CUR;return !!(c&&c.user&&c.user.role==='lead'&&c.user.status==='approved')}
+async function manageList(){
+  window.LISTMODE='manage';var b=G();b.textContent='Загрузка…';
+  var d=await api('manage_list');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  b.innerHTML=d.articles.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>Статья</th><th>Тип</th><th>Автор</th><th>Дата</th><th></th></tr>'+d.articles.map(function(a){
+    return'<tr><td><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td>'+(a.published_at||'').slice(0,10)+'</td><td><button class="mini" data-do="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-do="unpub" data-id="'+a.id+'">Снять</button> <button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button></td></tr>'}).join('')+'</table></div>':'<p>Опубликованных статей пока нет.</p>';
+}
+async function manageAct(o,id){
+  var t=o==='unpub'?'Снять статью с публикации? Она вернётся автору в черновики, ссылка освободится.':'Удалить статью навсегда? Это нельзя отменить.';
+  if(!confirm(t))return false;
+  var d=await api(o==='unpub'?'unpublish':'article_delete',{id:id});
+  if(!d.ok){alert('Ошибка: '+errText(d));return false}
+  return true;
+}
+function artBar(a){return'<p class="mdbar"><button class="mini" data-art="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-art="unpub" data-id="'+a.id+'">Снять с публикации</button> <button class="mini" data-art="del" data-id="'+a.id+'">Удалить</button></p>'}
+async function artAct(k,id){
+  if(k==='edit'){window.LISTMODE='manage';show('generic');mark(null);setG('Редактирование статьи','Опубликованная статья');polyEdit(id);return}
+  if(await manageAct(k,id))openPage('home');
+}
+async function polyList(){window.LISTMODE='poly';
   var b=G();b.textContent='Загрузка…';
   var d=await api('my_articles');
   if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
   var h='<p><button class="mini" data-do="new">Новая статья</button></p>';
   if(!d.articles.length)h+='<p>У вас пока нет статей.</p>';
   else{
-    h+='<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Статус</th><th>Замечание</th></tr>';
+    h+='<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Статус</th><th>Замечание</th><th></th></tr>';
     d.articles.forEach(function(a){
-      h+='<tr><td><a href="#" data-do="edit" data-id="'+a.id+'">'+(objName(a)||'(без названия)')+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+STAT_RU[a.status]+(a.slug?' · <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть</a>':'')+'</td><td>'+(a.status.indexOf('rejected')>0?esc(a.note):'')+'</td></tr>';
+      h+='<tr><td><a href="#" data-do="edit" data-id="'+a.id+'">'+(objName(a)||'(без названия)')+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+STAT_RU[a.status]+(a.slug?' · <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть</a>':'')+'</td><td>'+(a.status.indexOf('rejected')>0?esc(a.note):'')+'</td><td>'+(EDITABLE.indexOf(a.status)>=0?'<button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button>':'')+'</td></tr>';
     });
     h+='</table></div>';
   }
@@ -522,7 +544,7 @@ async function polyEdit(id){
   var b=G(),a={kind:'object',scp_code:'',title:'',body:'',status:'draft'},rv=[];
   if(id){b.textContent='Загрузка…';var d=await api('article_get',{id:id});if(!d.ok){b.textContent='Ошибка: '+errText(d);return}a=d.article;rv=d.reviews}
   window.EDID=id||null;
-  var dis=EDITABLE.indexOf(a.status)<0?' disabled':'';
+  var dis=EDITABLE.indexOf(a.status)<0&&!(a.status==='published'&&isLead())?' disabled':'';
   var h='<p><button class="mini" data-do="back">← К списку</button> Статус: '+STAT_RU[a.status]+'</p>';
   rv.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Тип статьи</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
@@ -533,7 +555,7 @@ async function polyEdit(id){
    +'<label>Класс нарушения</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
    +'<label>Класс риска</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
    +'<label>Текст</label>'+(dis?'':MDBAR)+'<textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea>';
-  if(!dis)h+='<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
+  if(!dis)h+=a.status==='published'?'<button class="mini" data-do="save">Сохранить изменения</button> <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть статью</a>':'<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
   b.innerHTML=h+'</div><p id="e-msg"></p>';
   var k=document.getElementById('e-kind');
   function sync(){var o=k.value==='object';document.getElementById('e-obj').style.display=o?'block':'none';document.getElementById('e-acs').style.display=o?'block':'none';
@@ -585,9 +607,10 @@ async function doReview(o){
   if(o==='pub')alert('Опубликовано: '+location.origin+'/'+d.slug);
   queueView(R.stage);
 }
-G().addEventListener('click',function(e){
+G().addEventListener('click',async function(e){
   var md=e.target.closest('[data-md]');if(md){e.preventDefault();applyMd(md.dataset.md);return}var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
-  if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')polyList();
+  if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')(window.LISTMODE==='manage'?manageList:polyList)();
+  else if(o==='unpub'||o==='del'){if(await manageAct(o,b.dataset.id))(window.LISTMODE==='manage'?manageList:polyList)()}
   else if(o==='save')polySave();else if(o==='submit')polySubmit();
   else if(o==='open')reviewView(b.dataset.id,b.dataset.stage);else if(o==='qback')queueView(b.dataset.stage);
   else doReview(o);
@@ -595,7 +618,7 @@ G().addEventListener('click',function(e){
 
 /* Ссылки на статьи и маршрутизация по адресу */
 document.addEventListener('click',function(e){
-  var a=e.target.closest('a[data-slug]');if(!a)return;
+  var t=e.target.closest('[data-art]');if(t){e.preventDefault();artAct(t.dataset.art,t.dataset.id);return}var a=e.target.closest('a[data-slug]');if(!a)return;
   e.preventDefault();history.pushState(null,'','/'+a.dataset.slug);openArticle(a.dataset.slug);
 });
 function afterLogin(){
