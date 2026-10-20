@@ -127,6 +127,10 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .art blockquote{border-left:3px solid #888;margin:12px 0;padding:4px 14px;color:#bbb}.art code{background:#1a1a1a;padding:1px 5px}
 .art pre{background:#111;border:1px solid #444;padding:10px;overflow-x:auto}.art pre code{padding:0;background:none}
 .art hr{border:0;border-top:1px solid #666}.art li{line-height:1.8}.art a{color:#fff}.art table{margin:10px 0}
+.coll{border:1px solid #888;margin:12px 0}.coll summary{cursor:pointer;padding:8px 12px;background:#1a1a1a;list-style:none}
+.coll summary::-webkit-details-marker{display:none}.coll summary::before{content:"▸ "}.coll[open] summary::before{content:"▾ "}
+.coll .s-hide{display:none}.coll[open] .s-show{display:none}.coll[open] .s-hide{display:inline}.coll-in{padding:6px 14px;border-top:1px solid #444}
+#e-prev{margin-top:14px}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
 </style>
 </head>
@@ -460,13 +464,19 @@ function fmt(src){var L=String(src).replace(/\r/g,'').split('\n'),o=[],i=0,l,m;
   while(i<L.length){l=L[i];
     if(/^\s*$/.test(l)){i++;continue}
     if(/^```/.test(l)){var c=[];i++;while(i<L.length&&!/^```/.test(L[i]))c.push(L[i++]);i++;o.push('<pre><code>'+esc(c.join('\n'))+'</code></pre>');continue}
+    if(m=/^\[\[collapsible\b([^\]]*)\]\]\s*$/i.exec(l)){
+      var dp=1,inn=[];i++;
+      while(i<L.length){if(/^\[\[collapsible\b[^\]]*\]\]\s*$/i.test(L[i]))dp++;else if(/^\[\[\/collapsible\]\]\s*$/i.test(L[i])){dp--;if(!dp)break}inn.push(L[i++])}
+      i++;
+      var sh=/show\s*=\s*"([^"]*)"/i.exec(m[1])||/show\s*=\s*'([^']*)'/i.exec(m[1]),hd=/hide\s*=\s*"([^"]*)"/i.exec(m[1])||/hide\s*=\s*'([^']*)'/i.exec(m[1]);
+      o.push('<details class="coll"><summary><span class="s-show">'+esc(sh?sh[1]:'Открыть')+'</span><span class="s-hide">'+esc(hd?hd[1]:'Свернуть')+'</span></summary><div class="coll-in">'+fmt(inn.join('\n'))+'</div></details>');continue}
     if(m=/^(#{1,3})\s+(.*)$/.exec(l)){var n=m[1].length+1;o.push('<h'+n+'>'+inl(esc(m[2]))+'</h'+n+'>');i++;continue}
     if(/^\s*(-{3,}|\*{3,})\s*$/.test(l)){o.push('<hr>');i++;continue}
     if(/^>\s?/.test(l)){var q=[];while(i<L.length&&/^>\s?/.test(L[i]))q.push(L[i++].replace(/^>\s?/,''));o.push('<blockquote>'+inl(esc(q.join('\n'))).replace(/\n/g,'<br>')+'</blockquote>');continue}
     if(/^\s*[-*]\s+/.test(l)){var u=[];while(i<L.length&&/^\s*[-*]\s+/.test(L[i]))u.push('<li>'+inl(esc(L[i++].replace(/^\s*[-*]\s+/,'')))+'</li>');o.push('<ul>'+u.join('')+'</ul>');continue}
     if(/^\s*\d+[.)]\s+/.test(l)){var w=[];while(i<L.length&&/^\s*\d+[.)]\s+/.test(L[i]))w.push('<li>'+inl(esc(L[i++].replace(/^\s*\d+[.)]\s+/,'')))+'</li>');o.push('<ol>'+w.join('')+'</ol>');continue}
     if(/^\|.*\|\s*$/.test(l)){var r=[];while(i<L.length&&/^\|.*\|\s*$/.test(L[i]))r.push(L[i++]);o.push(mdTable(r));continue}
-    var p=[];while(i<L.length&&!/^\s*$/.test(L[i])&&!/^(```|#{1,3}\s|>|\s*[-*]\s|\s*\d+[.)]\s|\||-{3,}\s*$)/.test(L[i]))p.push(L[i++]);
+    var p=[];while(i<L.length&&!/^\s*$/.test(L[i])&&!/^(```|#{1,3}\s|>|\s*[-*]\s|\s*\d+[.)]\s|\||-{3,}\s*$|\[\[\/?collapsible)/.test(L[i]))p.push(L[i++]);
     if(!p.length)p.push(L[i++]);
     o.push('<p>'+inl(esc(p.join('\n'))).replace(/\n/g,'<br>')+'</p>')}
   return o.join('')}
@@ -567,7 +577,7 @@ async function polyEdit(id){
    +'<label>Вторичный класс</label>'+sel('e-sec',ACS.sec,a.secondary,'—',dis)
    +'<label>Класс нарушения</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
    +'<label>Класс риска</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
-   +authFields(a,dis)+'<label>Текст</label>'+(dis?'':MDBAR)+'<textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea><label>Источники и благодарности</label><textarea id="e-cr" rows="3" maxlength="2000"'+dis+'>'+esc(a.credits||'')+'</textarea>';
+   +authFields(a,dis)+'<label>Текст</label>'+(dis?'':MDBAR)+'<textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea><label>Источники и благодарности</label><textarea id="e-cr" rows="3" maxlength="2000"'+dis+'>'+esc(a.credits||'')+'</textarea><div id="e-prev"></div>';
   if(!dis)h+=a.status==='published'?'<button class="mini" data-do="save">Сохранить изменения</button> <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть статью</a>':'<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
   b.innerHTML=h+'</div><p id="e-msg"></p>';
   var k=document.getElementById('e-kind');
@@ -577,8 +587,8 @@ async function polyEdit(id){
   var og=document.getElementById('e-orig');function sync2(){document.getElementById('e-tr').style.display=og.value==='translation'?'block':'none'}og.onchange=sync2;sync2();
 }
 function codeVal(){var c=V('e-code').trim().toUpperCase().replace(/^SCP-/,'');return c?'SCP-'+c:''}
-var MD={b:['**','**','текст'],i:['*','*','текст'],s:['~~','~~','текст'],c:['`','`','код'],h:['## ','','Заголовок'],l:['- ','','пункт'],n:['1. ','','пункт'],q:['> ','','цитата'],k:['[','](https://)','текст'],r:['\n---\n','',''],f:['\n```\n','\n```\n','код'],t:['\n| Колонка 1 | Колонка 2 |\n| --- | --- |\n| ','  |  |\n','текст']};
-var MDBAR='<div class="mdbar">'+[['b','Ж'],['i','К'],['s','Зачёркнутый'],['c','Код'],['h','Заголовок'],['l','Список'],['n','Нумерация'],['q','Цитата'],['k','Ссылка'],['r','Линия'],['f','Блок кода'],['t','Таблица']].map(function(x){return'<button type="button" class="mini" data-md="'+x[0]+'">'+x[1]+'</button>'}).join(' ')+'</div>';
+var MD={b:['**','**','текст'],i:['*','*','текст'],s:['~~','~~','текст'],c:['`','`','код'],h:['## ','','Заголовок'],l:['- ','','пункт'],n:['1. ','','пункт'],q:['> ','','цитата'],k:['[','](https://)','текст'],r:['\n---\n','',''],p:['\n[[collapsible show="Открыть" hide="Свернуть"]]\n','\n[[/collapsible]]\n','текст'],f:['\n```\n','\n```\n','код'],t:['\n| Колонка 1 | Колонка 2 |\n| --- | --- |\n| ','  |  |\n','текст']};
+var MDBAR='<div class="mdbar">'+[['b','Ж'],['i','К'],['s','Зачёркнутый'],['c','Код'],['h','Заголовок'],['l','Список'],['n','Нумерация'],['q','Цитата'],['k','Ссылка'],['r','Линия'],['p','Плашка'],['f','Блок кода'],['t','Таблица']].map(function(x){return'<button type="button" class="mini" data-md="'+x[0]+'">'+x[1]+'</button>'}).join(' ')+' <button type="button" class="mini" data-do="preview">Предпросмотр</button></div>';
 function applyMd(k){var ta=document.getElementById('e-body'),m=MD[k],s=ta.selectionStart,e=ta.selectionEnd,t=ta.value.slice(s,e)||m[2];
   ta.value=ta.value.slice(0,s)+m[0]+t+m[1]+ta.value.slice(e);ta.focus();ta.selectionStart=s+m[0].length;ta.selectionEnd=s+m[0].length+t.length}
 async function polySave(){
@@ -624,6 +634,7 @@ async function doReview(o){
 G().addEventListener('click',async function(e){
   var md=e.target.closest('[data-md]');if(md){e.preventDefault();applyMd(md.dataset.md);return}var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
   if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')(window.LISTMODE==='manage'?manageList:polyList)();
+  else if(o==='preview'){document.getElementById('e-prev').innerHTML='<div class="art">'+fmt(V('e-body'))+'</div>'}
   else if(o==='unpub'||o==='del'){if(await manageAct(o,b.dataset.id))(window.LISTMODE==='manage'?manageList:polyList)()}
   else if(o==='save')polySave();else if(o==='submit')polySubmit();
   else if(o==='open')reviewView(b.dataset.id,b.dataset.stage);else if(o==='qback')queueView(b.dataset.stage);
