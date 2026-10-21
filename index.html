@@ -132,6 +132,16 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .coll .s-hide{display:none}.coll[open] .s-show{display:none}.coll[open] .s-hide{display:inline}.coll-in{padding:6px 14px;border-top:1px solid #444}
 #e-prev{margin-top:14px}
 .afoot{border-top:1px solid #666;margin-top:28px;padding-top:10px;line-height:1.8}.adate{color:#bbb;margin-top:10px}.aopts{text-align:right;margin-top:12px}
+.rbox{float:right;margin:0 0 10px 18px;text-align:center;border:1px solid #666;background:#111;padding:6px 14px;line-height:1.5}.rbox a{color:#e8e8e8;text-decoration:none}
+.star{cursor:pointer;color:#555;font-size:20px}.star.on{color:#f0c020}.star:hover{color:#fff}.afoot{clear:both}
+.mback{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
+.mwin{background:#000;border:1px solid #e8e8e8;padding:14px 20px;min-width:260px;max-width:90vw}.mh{display:flex;justify-content:space-between;align-items:center}
+.mrow{display:flex;align-items:center;gap:10px;margin:6px 0}.mrow>span:first-child{width:36px}.mrow>span:last-child{width:34px;text-align:right}
+.bar{flex:1;height:10px;background:#222}.bar i{display:block;height:100%;background:#f0c020}
+.cm{margin:10px 0}.cm-h{color:#bbb}.cm-h b{color:#fff}.role{border:1px solid #666;padding:0 5px;font-size:12px}.dt{font-size:12px;color:#888}
+.cm-q{border-left:2px solid #666;padding-left:8px;color:#888;font-size:13px;margin:4px 0}.cm-b{margin:4px 0;line-height:1.6}
+.cm-a{font-size:13px}.cm-a a{color:#bbb;margin-right:12px}.cm-kids{margin-left:16px;border-left:1px solid #444;padding-left:10px}.cm-kids.flat{margin-left:0;padding-left:0;border-left:0}
+.cm-f textarea{margin-bottom:6px}.cm-err{color:#e53935}.cm-hint{color:#888}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
 </style>
 </head>
@@ -448,7 +458,7 @@ var LEG=[['#888','Не назначен, нейтрализован или об�
 function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
 function objName(a){return a.kind==='object'&&a.scp_code?esc(a.scp_code)+(a.title?' — '+esc(a.title):''):esc(a.title)}
 function kindLabel(a){return a.kind==='object'?'Объект'+(a.scp_code?' '+esc(a.scp_code):''):KIND_RU[a.kind]}
-function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={bad_url:'ссылка на оригинал должна начинаться с http:// или https://',empty_origin:'для перевода укажите автора оригинала и ссылку на него',bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
+function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={too_fast:'слишком часто, подождите минуту',bad_body:'комментарий должен быть от 1 до 2000 символов',own_article:'свою статью оценивать нельзя',bad_parent:'комментарий, на который вы отвечаете, недоступен',bad_url:'ссылка на оригинал должна начинаться с http:// или https://',empty_origin:'для перевода укажите автора оригинала и ссылку на него',bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
 function acsBlock(a){var r=[['Класс содержания',ACS.cont[a.containment]],['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].filter(function(x){return x[1]});return r.length?'<table class="tbl">'+r.map(function(x){return'<tr><th>'+x[0]+'</th><td>'+x[1]+'</td></tr>'}).join('')+'</table>':''}
 function inl(t){return t.split(/(`[^`]+`)/).map(function(p,i){
   if(i%2)return'<code>'+p.slice(1,-1)+'</code>';
@@ -511,7 +521,7 @@ async function openArticle(slug){
   if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
   var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
   M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
-  B.innerHTML='<div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead());
+  window.ART=a;B.innerHTML='<div class="rbox" id="rbox"></div><div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead())+cmShell();loadRating();loadComments();
 }
 
 /* Полигон */
@@ -708,6 +718,88 @@ G().addEventListener('change',async function(e){
   if(!d.ok)alert('Ошибка: '+errText(d));
   renderUsers();
 });
+
+/* Рейтинг и комментарии */
+var ROLE_C={reader:'читатель',author:'автор',admin:'администратор',lead:'руководитель'};
+function acted(){var c=window.CUR;return !!(c&&c.user&&c.user.status==='approved')}
+function isMod(){var c=window.CUR;return !!(acted()&&(c.user.role==='admin'||c.user.role==='lead'))}
+function dstr(t){return (t||'').slice(0,16).replace('T',' ')}
+function plural(n,a,b,c){n=Math.abs(n)%100;var k=n%10;return n>10&&n<20?c:k===1?a:k>1&&k<5?b:c}
+async function loadRating(){
+  var A=window.ART,el=document.getElementById('rbox');if(!A||!el)return;
+  var d=await api('rating',{article_id:A.id});el=document.getElementById('rbox');if(!d.ok||!el)return;
+  window.RT=d;var st='';
+  for(var i=1;i<=5;i++)st+='<span class="star'+(d.mine>=i?' on':'')+'" data-star="'+i+'">★</span>';
+  el.innerHTML='<div><a href="#" data-rt="dist">рейтинг: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b></a></div><div class="stars">'+st+(d.mine?' <span class="star" data-star="0" title="Убрать оценку">✕</span>':'')+'</div><small>'+d.count+' '+plural(d.count,'голос','голоса','голосов')+'</small>';
+}
+function showDist(){
+  var d=window.RT;if(!d)return;var mx=Math.max.apply(null,d.dist.concat(1));
+  var h='<div class="mback"><div class="mwin"><div class="mh"><b>Оценки</b><span class="star" data-mclose="1">✕</span></div><p>Средняя оценка: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b> · проголосовало: '+d.count+'</p>';
+  for(var i=5;i>=1;i--)h+='<div class="mrow"><span>'+i+' ★</span><span class="bar"><i style="width:'+Math.round(d.dist[i-1]/mx*100)+'%"></i></span><span>'+d.dist[i-1]+'</span></div>';
+  document.body.insertAdjacentHTML('beforeend',h+'</div></div>');
+}
+function cmShell(){return'<details class="coll" id="cm-det"><summary><span class="s-show">Открыть комментарии (<span id="cm-cnt">…</span>)</span><span class="s-hide">Свернуть комментарии</span></summary><div class="coll-in" id="cm-box">Загрузка…</div></details>'}
+function cmForm(pid,eid,txt){
+  if(!pid&&!eid&&!acted())return'<p class="cm-hint">'+(window.CUR&&window.CUR.user?'Комментировать можно после одобрения заявки.':'Чтобы комментировать, войдите на сайт.')+'</p>';
+  return'<div class="fm cm-f'+(pid||eid?' inl':'')+'" data-pid="'+(pid||'')+'" data-eid="'+(eid||'')+'"><textarea rows="3" maxlength="2000">'+esc(txt||'')+'</textarea><button class="mini" data-cm="send">'+(eid?'Сохранить':'Отправить')+'</button>'+(pid||eid?' <button class="mini" data-cm="cancel">Отмена</button>':'')+' <span class="cm-err"></span></div>';
+}
+function cmTree(pid,dep){
+  var by={};window.CMS.forEach(function(c){by[c.id]=c});
+  return window.CMS.filter(function(c){return (c.parent_id||null)===pid}).map(function(c){
+    var nk=window.CMS.filter(function(x){return x.parent_id===c.id}).length;
+    var h='<div class="cm" id="c-'+c.id+'"><div class="cm-h">'+(c.deleted?'<i>удалён</i>':'<b>'+esc(c.author_name)+'</b> <span class="role">'+(ROLE_C[c.role]||'')+'</span>')+' <span class="dt">'+dstr(c.created_at)+(c.edited_at?' (изменён)':'')+'</span></div>';
+    if(c.deleted)h+='<div class="cm-b"><i>комментарий удалён</i></div>';
+    else{
+      var p=c.parent_id&&by[c.parent_id];
+      if(p&&!p.deleted)h+='<div class="cm-q">В ответ на '+esc(p.author_name)+': '+esc(p.body.slice(0,80))+(p.body.length>80?'…':'')+'</div>';
+      h+='<div class="cm-b">'+inl(esc(c.body)).replace(/\n/g,'<br>')+'</div><div class="cm-a">'
+       +(acted()?'<a href="#" data-cm="reply" data-id="'+c.id+'">Ответить</a> ':'')+(c.mine?'<a href="#" data-cm="edit" data-id="'+c.id+'">Изменить</a> ':'')
+       +(c.mine||isMod()?'<a href="#" data-cm="del" data-id="'+c.id+'">Удалить</a>':'')+'</div>';
+    }
+    if(nk)h+='<div class="cm-a"><a href="#" data-cm="fold" data-id="'+c.id+'">▾ '+nk+' '+plural(nk,'ответ','ответа','ответов')+'</a></div>';
+    return h+'<div class="cm-kids'+(dep>=4?' flat':'')+'" id="k-'+c.id+'">'+cmTree(c.id,dep+1)+'</div></div>';
+  }).join('');
+}
+async function loadComments(){
+  var A=window.ART,box=document.getElementById('cm-box');if(!A||!box)return;
+  var d=await api('comments',{article_id:A.id});box=document.getElementById('cm-box');if(!box)return;
+  if(!d.ok){box.textContent='Не удалось загрузить комментарии';return}
+  window.CMS=d.comments;
+  document.getElementById('cm-cnt').textContent=d.comments.filter(function(c){return !c.deleted}).length;
+  box.innerHTML=cmForm()+(d.comments.length?cmTree(null,0):'<p class="cm-hint">Комментариев пока нет.</p>');
+}
+async function cmSend(f){
+  var t=f.querySelector('textarea').value.trim(),e=f.dataset.eid,er=f.querySelector('.cm-err');
+  var d=e?await api('comment_edit',{id:e,body:t}):await api('comment_add',{article_id:window.ART.id,parent_id:f.dataset.pid||null,body:t});
+  if(!d.ok){er.textContent=errText(d);return}
+  loadComments();
+}
+document.addEventListener('click',async function(e){
+  var s=e.target.closest('[data-star]');
+  if(s){
+    if(!acted()){alert('Чтобы оценивать, войдите на сайт и дождитесь одобрения заявки.');return}
+    if(window.RT&&window.RT.own){alert('Свою статью оценивать нельзя.');return}
+    var d=await api('rate',{article_id:window.ART.id,stars:Number(s.dataset.star)});
+    if(!d.ok)alert('Ошибка: '+errText(d));
+    loadRating();return;
+  }
+  if(e.target.closest('[data-rt]')){e.preventDefault();showDist();return}
+  var mb=e.target.closest('.mback');
+  if(e.target.closest('[data-mclose]')||(mb&&e.target===mb)){var m=document.querySelector('.mback');if(m)m.remove();return}
+  var c=e.target.closest('[data-cm]');if(!c)return;e.preventDefault();
+  var k=c.dataset.cm,id=c.dataset.id,box=id&&document.getElementById('c-'+id);
+  if(k==='send')cmSend(c.closest('.cm-f'));
+  else if(k==='cancel')loadComments();
+  else if(k==='reply'){document.querySelectorAll('.cm-f.inl').forEach(function(x){x.remove()});box.querySelector('.cm-kids').insertAdjacentHTML('beforebegin',cmForm(id))}
+  else if(k==='edit'){
+    document.querySelectorAll('.cm-f.inl').forEach(function(x){x.remove()});
+    var cm=window.CMS.filter(function(x){return x.id===id})[0],b=box.querySelector('.cm-b');
+    b.insertAdjacentHTML('afterend',cmForm(null,id,cm.body));
+  }
+  else if(k==='del'){if(confirm('Удалить комментарий?')){var d2=await api('comment_delete',{id:id});if(!d2.ok)alert('Ошибка: '+errText(d2));loadComments()}}
+  else if(k==='fold'){var kk=document.getElementById('k-'+id),hid=kk.style.display==='none';kk.style.display=hid?'':'none';c.textContent=c.textContent.replace(/^[▾▸]/,hid?'▾':'▸')}
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.querySelector('.mback');if(m)m.remove()}});
 
 /* Ссылки на статьи и маршрутизация по адресу */
 document.addEventListener('click',function(e){
