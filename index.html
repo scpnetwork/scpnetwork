@@ -1,768 +1,939 @@
-// Supabase Edge Function: api
-// Вход и пользователи: login, me, users, set_status, set_role.
-// Публичные (без входа): article, articles.
-// Статьи: my_articles, article_get, article_save, article_submit, queue, review, publish.
-// Права проверяются здесь, на сервере, по данным из базы, а не по тому, что прислал браузер.
-import { createClient } from "npm:@supabase/supabase-js@2";
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<base href="/">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>SCP Foundation — fan-project</title>
+<link rel="icon" type="image/png" href="logo.png"/>
+<link rel="apple-touch-icon" href="logo.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000; --panel:#0b0b0b; --line:#2a2a2a; --line-hi:#e8e8e8;
+  --text:#e8e8e8; --muted:#8a8a8a; --dim:#555;
+  --head:'Rajdhani',sans-serif; --mono:'Share Tech Mono',ui-monospace,monospace;
+  --hdr:84px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.7}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
-const ALLOWED_ORIGINS = [
-  "https://scpnetwork.ru",
-  "https://www.scpnetwork.ru",
-  "https://scpnetwork.github.io",
+/* Loader */
+#loader{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .6s}
+#loader.out{opacity:0;pointer-events:none}
+#loader img{width:76px;animation:pulse 2s ease-in-out infinite}
+#loader p{font-size:11px;letter-spacing:3px;color:var(--dim)}
+.ld-bar{width:160px;height:1px;background:#1a1a1a;overflow:hidden}
+.ld-bar i{display:block;height:100%;width:0;background:#fff;animation:fill 2.2s ease forwards}
+@keyframes pulse{50%{opacity:.3}}
+@keyframes fill{to{width:100%}}
+
+/* Site */
+#site{min-height:100vh;display:flex;flex-direction:column;opacity:0;transition:opacity .5s}
+#site.visible{opacity:1}
+
+/* Header */
+#header{position:sticky;top:0;z-index:100;height:var(--hdr);display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line-hi);background:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 3px,rgba(0,0,0,0) 3px 9px),linear-gradient(to bottom,#5c5c5c 0%,#2a2a2a 55%,#000 100%)}
+#burger{width:40px;height:40px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;flex-shrink:0}
+#burger span{width:24px;height:2px;background:#fff;box-shadow:0 1px 3px #000;transition:transform .25s,opacity .2s}
+#burger.open span:nth-child(1){transform:translateY(8px) rotate(45deg)}
+#burger.open span:nth-child(2){opacity:0}
+#burger.open span:nth-child(3){transform:translateY(-8px) rotate(-45deg)}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;min-width:0;cursor:pointer}
+.brand img{width:52px;height:52px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,.9))}
+.brand b{display:block;font-family:var(--head);font-size:30px;line-height:1;letter-spacing:1px;text-shadow:2px 2px 0 #000,0 3px 8px rgba(0,0,0,.9)}
+.brand small{display:block;font-size:14px;color:#cfcfcf;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:1px 1px 0 #000,0 2px 5px rgba(0,0,0,.9)}
+.spacer{flex:1}
+#search{display:flex;align-items:center;background:rgba(0,0,0,.65);border:1px solid #555;height:36px;width:220px;max-width:34vw}
+#search:focus-within{border-color:var(--line-hi)}
+#search input{flex:1;min-width:0;height:100%;background:none;border:0;color:var(--text);font:inherit;font-size:13px;padding:0 10px}
+#search input:focus{outline:none}
+#search button{padding:0 10px;color:var(--muted)}
+.btn{display:inline-block;background:rgba(0,0,0,.65);box-shadow:0 2px 6px rgba(0,0,0,.6);padding:7px 18px;border:1px solid var(--line-hi);font-family:var(--head);font-weight:700;font-size:17px;letter-spacing:1px;text-decoration:none;white-space:nowrap}
+.btn:hover{background:#fff;color:#000}
+#auth-user{display:none;align-items:center;gap:12px;background:#000;border:1px solid var(--line-hi);box-shadow:0 2px 6px rgba(0,0,0,.6);padding:6px 16px;font-size:13px;color:#e8e8e8;white-space:nowrap}
+#auth-name{cursor:pointer;font-family:var(--head);font-weight:700;font-size:18px;color:#fff}
+#auth-name:hover{text-decoration:underline;text-underline-offset:3px}
+#auth-role,#auth-user .logout{padding-left:12px;border-left:1px solid #444}
+#auth-role{color:#bdbdbd}
+#auth-user .logout{cursor:pointer;color:#bdbdbd}
+#auth-user .logout:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* Menu drawer */
+#scrim{position:fixed;inset:var(--hdr) 0 0 0;background:rgba(0,0,0,.7);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
+#scrim.open{opacity:1;pointer-events:auto}
+#nav{position:fixed;top:var(--hdr);bottom:0;left:0;width:300px;max-width:86vw;z-index:95;background:var(--bg);border-right:1px solid var(--line-hi);overflow-y:auto;transform:translateX(-100%);transition:transform .28s ease;padding:8px 0 24px}
+#nav.open{transform:none}
+.nav-item{display:block;width:100%;text-align:left;padding:11px 22px;font-family:var(--head);font-weight:700;font-size:19px;letter-spacing:.5px;color:#bdbdbd;border-left:3px solid transparent}
+.nav-item:hover{background:var(--panel);color:#fff}
+.nav-item.active{color:#fff;border-left-color:#fff;background:var(--panel)}
+.nav-group{padding:14px 22px 4px;color:var(--dim);font-size:12px}
+.classes{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:4px 22px 10px}
+.classes button{height:38px;border:1px solid var(--line);font-family:var(--head);font-weight:700;font-size:17px;color:#bdbdbd}
+.classes button:hover,.classes button.active{border-color:#fff;background:#fff;color:#000}
+.nav-sep{height:1px;background:var(--line);margin:8px 22px}
+.only-admin{display:none}
+body.role-admin .only-admin,body.role-lead .only-admin{display:block}
+.only-auth{display:none}
+body[class*="role-"] .only-auth{display:block}
+.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{border-top:1px solid var(--line);padding:8px 10px;text-align:left;white-space:nowrap}.tbl th{color:var(--muted);font-weight:400;border-top:0}
+.mini{border:1px solid var(--line-hi);padding:2px 10px;margin-right:6px}.mini:hover{background:#fff;color:#000}
+.rsel{background:#000;color:#fff;border:1px solid var(--line-hi);padding:2px 6px;font:inherit}
+.cab-head{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;margin-bottom:20px;color:var(--muted)}
+.cab-head b{font-family:var(--head);font-size:22px;color:#fff}
+.cab-role{border:1px solid var(--line-hi);padding:0 10px;color:#fff}
+.cab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 24px}
+
+/* Content */
+#content{flex:1;width:100%;max-width:1100px;margin:0 auto;padding:28px 20px 40px}
+.tab{display:none}.tab.active{display:block}
+h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;line-height:1.1;margin-bottom:22px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.layout{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:24px;align-items:start}
+.box{border:1px solid var(--line-hi);margin-bottom:24px}
+.box>h2{font-family:var(--head);font-weight:700;font-size:20px;letter-spacing:.5px;padding:4px 14px;background:#6b6b6b;color:#fff;border-bottom:1px solid var(--line-hi)}
+.box-btn{display:block;width:100%;text-align:left;border:1px solid var(--line-hi);background:#6b6b6b;color:#fff;font-family:var(--head);font-weight:700;font-size:20px;letter-spacing:.5px;padding:4px 14px;transition:background .15s,color .15s}
+.box-btn::after{content:'\203A';float:right;font-size:24px;line-height:1.1}
+.box-btn:hover{background:#fff;color:#000}
+.box .in{padding:14px 16px;color:#c8c8c8}
+.box .in p+p{margin-top:10px}
+.box .in a:hover{color:#fff}
+.redact{display:block;height:.9em;margin:.55em 0;background:#222}
+.redact.s{width:60%}.redact.m{width:82%}
+.note{color:var(--muted);font-size:13px;margin-top:12px}
+.steps{list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:flex;gap:14px;padding:10px 0;border-top:1px solid var(--line)}
+.steps li:first-child{border-top:0}
+.steps li::before{content:counter(s);font-family:var(--head);font-weight:700;font-size:22px;line-height:1.2;width:22px;color:#fff}
+
+#footer{border-top:1px solid var(--line);padding:12px 20px;font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+@media (max-width:760px){
+  #auth-role{display:none}
+  .layout{grid-template-columns:1fr}
+  #search{width:auto;flex:1;max-width:none}
+  .spacer{display:none}
+  #content{padding:20px 14px 32px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.fm label{display:block;margin-top:8px;color:#bbb}
+.fm input,.fm select,.fm textarea{background:#000;color:#e8e8e8;border:1px solid #e8e8e8;font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:6px 0 12px}
+.art p{line-height:1.8}.alist{line-height:2}.alist a,.tbl a{color:#fff}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}.legend{color:#bbb;line-height:2}
+.pfx{display:flex;align-items:center;border:1px solid #e8e8e8;margin:6px 0 12px}.pfx span{padding:0 8px;color:#bbb}.pfx input{border:0!important;margin:0!important;flex:1}
+.mdbar{margin:6px 0;line-height:2.2}
+.art blockquote{border-left:3px solid #888;margin:12px 0;padding:4px 14px;color:#bbb}.art code{background:#1a1a1a;padding:1px 5px}
+.art pre{background:#111;border:1px solid #444;padding:10px;overflow-x:auto}.art pre code{padding:0;background:none}
+.art hr{border:0;border-top:1px solid #666}.art li{line-height:1.8}.art a{color:#fff}.art table{margin:10px 0}
+.coll{border:1px solid #888;margin:12px 0}.coll summary{cursor:pointer;padding:8px 12px;background:#1a1a1a;list-style:none}
+.coll summary::-webkit-details-marker{display:none}.coll summary::before{content:"▸ "}.coll[open] summary::before{content:"▾ "}
+.coll .s-hide{display:none}.coll[open] .s-show{display:none}.coll[open] .s-hide{display:inline}.coll-in{padding:6px 14px;border-top:1px solid #444}
+#e-prev{margin-top:14px}
+.afoot{border-top:1px solid #666;margin-top:28px;padding-top:10px;line-height:1.8}.adate{color:#bbb;margin-top:10px}.aopts{text-align:right;margin-top:12px}
+#tab-article{position:relative}.rbox{position:absolute;right:0;top:4px;z-index:2;text-align:center;border:1px solid #666;background:#111;padding:3px 12px;line-height:1.25}.rbox .star{font-size:18px}.rbox[hidden]{display:none!important}#a-title{padding-right:250px;min-height:62px}
+@media(max-width:700px){#a-title{padding-right:0;min-height:0}.rbox{position:static;display:block;margin:0 0 10px}}.rbox a{color:#e8e8e8;text-decoration:none}
+.star{cursor:pointer;color:#555;font-size:20px}.star.on{color:#f0c020}.star:hover{color:#fff}.afoot{clear:both}
+.mback{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
+.mwin{background:#000;border:1px solid #e8e8e8;padding:14px 20px;min-width:260px;max-width:90vw}.mh{display:flex;justify-content:space-between;align-items:center}
+.mrow{display:flex;align-items:center;gap:10px;margin:6px 0}.mrow>span:first-child{width:36px}.mrow>span:last-child{width:34px;text-align:right}
+.bar{flex:1;height:10px;background:#222}.bar i{display:block;height:100%;background:#f0c020}
+.cm{margin:10px 0}.cm-h{color:#bbb}.cm-h b{color:#fff}.role{border:1px solid #666;padding:0 5px;font-size:12px}.dt{font-size:12px;color:#888}
+.cm-q{border-left:2px solid #666;padding-left:8px;color:#888;font-size:13px;margin:4px 0}.cm-b{margin:4px 0;line-height:1.6}
+.cm-a{font-size:13px}.cm-a a{color:#bbb;margin-right:12px}.cm-kids{margin-left:16px;border-left:1px solid #444;padding-left:10px}.cm-kids.flat{margin-left:0;padding-left:0;border-left:0}
+.cm-f textarea{margin-bottom:6px}.cm-err{color:#e53935}.cm-hint{color:#888}
+.pf-head{display:flex;gap:16px;align-items:center;margin-bottom:12px}.pf-ava{position:relative;width:96px;height:96px;border:1px solid #666;background:#111;display:flex;align-items:center;justify-content:center;font-size:40px;color:#bbb;flex:none;overflow:hidden}
+.pf-ava img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#111}.pf-nick{font-size:20px}.pf-dt{color:#888;font-size:13px}.pf-bio{margin-top:6px}
+.pf-stats{display:flex;flex-wrap:wrap;gap:6px 22px;margin:12px 0;color:#bbb}.pf-stats b{color:#fff}.pf-bar{margin:8px 0}.blk{border:1px solid #e53935;color:#e53935;padding:0 6px;font-size:12px}
+.note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <img src="logo2.png" alt="SCP Foundation"/>
+  <p>ИНИЦИАЛИЗАЦИЯ</p>
+  <div class="ld-bar"><i></i></div>
+</div>
+
+<div id="site">
+  <header id="header">
+    <button id="burger" aria-label="Меню" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
+    <a class="brand" data-page="home">
+      <img src="logo2.png" alt=""/>
+      <span><b>SCP Foundation</b><small>fan-project</small></span>
+    </a>
+    <span class="spacer"></span>
+    <form id="search" role="search" onsubmit="return doSearch(event)">
+      <input type="search" id="q" placeholder="Поиск по статьям" aria-label="Поиск по статьям"/>
+      <button type="submit" aria-label="Найти">&#9906;</button>
+    </form>
+    <div id="auth-guest"><a class="btn" href="#" onclick="telegramLogin();return false">Вход</a></div>
+    <div id="auth-user"><span id="auth-name" data-page="cabinet" title="Кабинет"></span><span id="auth-role"></span><span class="logout" onclick="logout()">выйти</span></div>
+  </header>
+
+  <div id="notice" style="display:none;padding:10px 20px;background:#222;border-bottom:1px solid #e8e8e8;text-align:center"></div>
+  <div id="scrim"></div>
+  <nav id="nav" aria-label="Основное меню">
+    <button class="nav-item active" data-page="home">Главная</button>
+    <div class="only-auth">
+      <div class="nav-sep"></div>
+      <div class="nav-group">Рабочие разделы</div>
+      <button class="nav-item" data-page="cabinet" data-min="0">Кабинет</button>
+      <button class="nav-item" data-page="polygon" data-min="2">Полигон</button>
+      <button class="nav-item" data-page="review" data-min="3">Проверка статей</button>
+      <button class="nav-item" data-page="moderation" data-min="3">Модерация</button>
+      <button class="nav-item" data-page="users" data-min="3">Заявки и пользователи</button>
+      <button class="nav-item" data-page="publish" data-min="4">На публикацию</button>
+      <button class="nav-item" data-page="manage" data-min="4">Публикации</button>
+    </div>
+    <button class="nav-item" data-page="authors">Для новых авторов</button>
+    <div class="nav-sep"></div>
+    <div class="nav-group">Объекты по сериям</div>
+    <div class="classes">
+      <button data-class="I">I</button><button data-class="II">II</button><button data-class="III">III</button>
+      <button data-class="IV">IV</button><button data-class="V">V</button><button data-class="VI">VI</button>
+    </div>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-page="stories">Рассказы</button>
+    <button class="nav-item" data-page="hubs">Хабы</button>
+    <div class="nav-sep"></div>
+    <button class="nav-item" data-page="rules">Правила</button>
+    <button class="nav-item" data-page="contacts">Контакты</button>
+    <button class="nav-item" data-page="discussion">Обсуждение</button>
+    <button class="nav-item" data-page="license">Лицензия</button>
+  </nav>
+
+  <main id="content">
+    <section class="tab active" id="tab-home">
+      <div class="layout">
+        <div>
+          <div class="box"><h2>О нас</h2><div class="in">
+            <p>scpnetwork.ru — независимый фанатский проект, берущий своё начало из телеграм-сети, посвящённой SCP Фонду, и не являющийся официальным русскоязычным филиалом или его продолжением.</p>
+          </div></div>
+          <div class="box"><h2>О Фонде SCP</h2><div class="in">
+            <p>Фонд SCP — это международный проект совместного творчества в жанре научной фантастики и ужасов, описывающий секретную организацию, которая ловит и изучает паранормальные явления. Распространяется по лицензии Creative Commons Attribution-ShareAlike 3.0 (сокращённо CC BY-SA 3.0).</p>
+          </div></div>
+        </div>
+        <button class="box-btn" data-page="newbies">Для новых пользователей</button>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-generic">
+      <h1 id="g-title"></h1>
+      <div class="box"><h2 id="g-sub"></h2><div class="in" id="g-body"></div></div>
+    </section>
+
+    <section class="tab" id="tab-cabinet">
+      <h1>Кабинет</h1>
+      <div id="cab"></div>
+    </section>
+
+    <section class="tab" id="tab-dashboard">
+      <h1>Панель администратора</h1>
+      <div class="box"><h2>Заявки на рассмотрении</h2><div class="in" id="admin-applications"><p>Загрузка...</p></div></div>
+    </section>
+    <section class="tab" id="tab-profile"><h1 id="p-title"></h1><div id="p-body"></div></section>
+    <section class="tab" id="tab-article">
+      <div class="rbox" id="rbox" hidden></div>
+      <h1 id="a-title"></h1>
+      <div id="a-body"></div><div id="a-meta" hidden></div>
+    </section>
+  </main>
+
+  <footer id="footer">
+    <span>SCP Foundation · fan-project</span>
+    <span>CC-BY-SA 3.0 · не официальный сайт SCP Foundation</span>
+  </footer>
+</div>
+
+<script>
+var WIP = '<p>Раздел в разработке.</p><span class="redact m"></span><span class="redact s"></span>';
+var PAGES = {
+  newbies:{t:'Для новых пользователей',s:'Как пользоваться сайтом',b:'<ol class="steps"><li><span>Войдите через Telegram: так вы сможете оценивать и комментировать статьи.</span></li><li><span>Откройте меню и выберите класс объектов.</span></li><li><span>Хотите писать сами? Раздел «Для новых авторов» объясняет, как подать заявку.</span></li></ol>'},
+  authors:{t:'Для новых авторов',s:'С чего начать',b:'<p>Здесь будет руководство: как получить права автора, оформить статью и отправить её на проверку.</p><span class="redact m"></span><span class="redact s"></span>'},
+  review:{t:'Проверка статей',s:'Очередь',b:'<p>Статьи со статусом «завершено»: принять или отклонить с обратной связью.</p>'+WIP},
+  moderation:{t:'Модерация',s:'Комментарии и оценки',b:WIP},
+  publish:{t:'На публикацию',s:'Одобрено администраторами',b:'<p>Выпустить статью или отклонить с комментарием.</p>'+WIP},
+  manage:{t:'Публикации',s:'Опубликованные статьи',b:''},
+  users:{t:'Заявки и пользователи',s:'Все входы на сайт',b:''},
+  stories:{t:'Рассказы',s:'Каталог',b:WIP},
+  hubs:{t:'Хабы',s:'Тематические подборки',b:WIP},
+  polygon:{t:'Полигон',s:'Черновики и тесты',b:'<p>Место для черновиков: пишите, проверяйте оформление и получайте отзывы до публикации.</p>'+WIP},
+  rules:{t:'Правила',s:'Публикация и поведение',b:'<p>Все материалы проходят модерацию. Обязательны грамотность, соблюдение канона и указание авторства при использовании чужих материалов.</p><p>Уважительное общение обязательно. Токсичность к участникам — причина деавторизации.</p>'},
+  contacts:{t:'Контакты',s:'Связь с администрацией',b:'<p>По любым вопросам пишите в <a href="https://t.me/scp_network" target="_blank" rel="noopener">Telegram-канал проекта</a>.</p>'},
+  discussion:{t:'Обсуждение',s:'Форум',b:WIP},
+  license:{t:'Лицензия',s:'CC-BY-SA 3.0',b:'<p>Контент SCP Foundation распространяется под лицензией <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC-BY-SA 3.0</a>. Оригинальные материалы сайта — на тех же условиях.</p>'}
+};
+
+/* Loader */
+window.addEventListener('load',function(){
+  setTimeout(function(){
+    var l=document.getElementById('loader');l.classList.add('out');
+    setTimeout(function(){l.style.display='none';document.getElementById('site').classList.add('visible')},650);
+  },2300);
+});
+
+/* Menu */
+var burger=document.getElementById('burger'),nav=document.getElementById('nav'),scrim=document.getElementById('scrim');
+function setNav(open){
+  nav.classList.toggle('open',open);scrim.classList.toggle('open',open);
+  burger.classList.toggle('open',open);burger.setAttribute('aria-expanded',open);
+}
+burger.onclick=function(){setNav(!nav.classList.contains('open'))};
+scrim.onclick=function(){setNav(false)};
+document.addEventListener('keydown',function(e){if(e.key==='Escape')setNav(false)});
+
+/* Routing */
+function show(tab){if(tab!=='article')document.title='SCP Foundation';
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  document.getElementById('tab-'+tab).classList.add('active');
+  window.scrollTo(0,0);
+}
+function mark(el){
+  document.querySelectorAll('#nav .nav-item,#nav .classes button').forEach(function(i){i.classList.remove('active')});
+  if(el)el.classList.add('active');
+}
+function openPage(id,np){
+  if(id==='home'||id==='dashboard'||id==='cabinet'){if(id==='cabinet')renderCabinet();show(id)}
+  else{
+    var p=PAGES[id];
+    document.getElementById('g-title').textContent=p.t;
+    document.getElementById('g-sub').textContent=p.s;
+    document.getElementById('g-body').innerHTML=p.b;
+    show('generic');
+    if(id==='users')renderUsers();
+    if(id==='polygon')polyList();if(id==='review')queueView('admin');if(id==='publish')queueView('lead');if(id==='manage')manageList();if(id==='moderation')modView('reports');if(id==='stories')listView('story');if(id==='hubs')listView('hub');
+  }
+  mark(document.querySelector('#nav .nav-item[data-page="'+id+'"]'));
+  setNav(false);
+  if(!np)history.pushState(null,'',id==='home'?'/main':'/#'+id);
+}
+function openClass(c,el,np){
+  document.getElementById('g-title').textContent='Объекты класса '+c;
+  document.getElementById('g-sub').textContent='Список объектов';
+  listView('object',c);
+  show('generic');mark(el);setNav(false);
+  if(!np)history.pushState(null,'','/#class-'+c);
+}
+document.addEventListener('click',function(e){
+  var p=e.target.closest('[data-page]'),c=e.target.closest('[data-class]');
+  if(c)openClass(c.dataset.class,c);
+  else if(p)openPage(p.dataset.page);
+});
+
+function doSearch(e){
+  e.preventDefault();
+  var q=document.getElementById('q').value.trim();
+  if(!q)return false;
+  document.getElementById('g-title').textContent='Поиск: '+q;
+  document.getElementById('g-sub').textContent='Результаты';
+  show('generic');mark(null);listView(null,null,q);
+  return false;
+}
+
+/* Auth (логика из вашего кода) */
+function telegramLogin(){
+  var origin=window.location.origin;
+  sessionStorage.setItem('return_to',location.pathname+location.hash);
+  var returnUrl=encodeURIComponent(origin+'/callback.html');
+  window.location.href='https://oauth.telegram.org/auth?bot_id=8273123472&origin='+encodeURIComponent(origin)+'&embed=0&request_access=write&return_to='+returnUrl;
+}
+function notice(t){var n=document.getElementById('notice');n.textContent=t;n.style.display=t?'block':'none'}
+async function onTelegramAuth(user){
+  notice('Вход…');
+  try{
+    var r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',user:user})});
+    var data=await r.json();
+    if(data.ok){sessionStorage.setItem('isb_user',JSON.stringify(data));applyAuth(data);notice('');afterLogin()}
+    else notice('Ошибка входа: '+(data.error||data.message||r.status));
+  }catch(e){notice('Ошибка входа: нет связи с сервером ('+e.message+')')}
+}
+function applyAuth(data){
+  window.CUR=data;
+  document.getElementById('auth-guest').style.display='none';
+  document.getElementById('auth-user').style.display='flex';
+  document.getElementById('auth-name').textContent=data.telegram.username?'@'+data.telegram.username:data.telegram.first_name;
+  var roleMap={reader:'читатель',author:'автор',admin:'админ',lead:'руководитель'};
+  var ok=data.user.status==='approved';
+  document.getElementById('auth-role').textContent=ok?(roleMap[data.user.role]||''):(data.user.status==='rejected'?'отклонён':'заявка на рассмотрении');
+  document.body.className='role-'+(ok?data.user.role:'reader');
+  var rk0=ok?(RANK[data.user.role]||1):0;
+  document.querySelectorAll('#nav [data-min]').forEach(function(el){el.style.display=rk0>=Number(el.dataset.min)?'block':'none'});
+}
+
+/* Кабинеты по ролям (пока только интерфейс, данные подключим к Supabase) */
+var RANK={reader:1,author:2,admin:3,lead:4};
+var ROLE_RU={reader:'читатель',author:'автор',admin:'администратор',lead:'руководитель'};
+function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var SECTIONS=[
+  [1,'Библиотека','<p>Понравившиеся статьи появятся здесь.</p>'],
+  [1,'Мои комментарии и оценки','<p>История ваших комментариев и оценок.</p>'],
+  [2,'Мои статьи (Полигон)','<p>Черновики и статусы: черновик → завершено → на проверке → опубликовано.</p>'],
+  [2,'Отзывы проверяющих','<p>Здесь будет обратная связь, если работу отклонили.</p>'],
+  [3,'Очередь проверки','<p>Статьи со статусом «завершено»: принять или отклонить с обратной связью автору.</p>'],
+  [3,'Модерация','<p>Комментарии и оценки, требующие проверки.</p>'],
+  [4,'На публикацию','<p>Статьи, одобренные администраторами: выпустить или отклонить с комментарием.</p>'],
+  [4,'Пользователи и роли','<p>Назначение ролей: читатель, автор, администратор, руководитель.</p>']
 ];
-const RANK: Record<string, number> = { reader: 1, author: 2, admin: 3, lead: 4 };
-const STATUSES = ["pending", "approved", "rejected"];
-const KINDS = ["object", "story", "hub"];
-const ACS = {
-  containment: ["safe", "euclid", "keter", "neutralized", "pending", "explained", "esoteric"],
-  secondary: ["thaumiel", "apollyon", "archon", "ticonderoga", "hiemal", "tiamat", "cernunnos", "uncontained"],
-  disruption: ["dark", "vlam", "keneq", "ekhi", "amida"],
-  risk: ["notice", "caution", "warning", "danger", "critical"],
-};
-const ROMAN = ["", "I", "II", "III", "IV", "V", "VI"];
-const CODE_RE = /^SCP-(\d{3,4})(-[A-Z0-9]{1,6})?$/;
-const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EDITABLE = ["draft", "admin_rejected", "lead_rejected"];
-const RU: Record<string, string> = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l",
-  м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch",
-  ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
-};
-const slugify = (t: string) =>
-  [...t.toLowerCase()].map((c) => RU[c] ?? c).join("")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80).replace(/-+$/, "");
-const enc = new TextEncoder();
-
-const b64url = (d: ArrayBuffer) =>
-  btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-async function sign(secret: string, msg: string) {
-  const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return b64url(await crypto.subtle.sign("HMAC", k, enc.encode(msg)));
+function renderCabinet(){
+  var c=window.CUR; if(!c)return;
+  var role=c.user.role, st=c.user.status, rk=st==='approved'?(RANK[role]||1):0;
+  var name=c.telegram.username?'@'+c.telegram.username:c.telegram.first_name;
+  var h='<div class="cab-head"><b>'+esc(name)+'</b><span class="cab-role">'+esc(ROLE_RU[role]||role)+'</span></div><div class="cab-grid">';
+  if(st!=='approved')h+='<div class="box"><h2>Статус заявки</h2><div class="in"><p>'+(st==='rejected'?'Заявка отклонена администрацией.':'Ваша заявка на рассмотрении. Доступ откроется после подтверждения.')+'</p></div></div>';
+  SECTIONS.forEach(function(s){
+    if(rk>=s[0]) h+='<div class="box"><h2>'+s[1]+'</h2><div class="in">'+s[2]+'<span class="redact m"></span><span class="redact s"></span></div></div>';
+  });
+  document.getElementById('cab').innerHTML=h+'</div>';
 }
 
-const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-const b64s = (s: string) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/* API (Edge Function api) */
+var API='https://hbdpdpyteodiejciolgl.supabase.co/functions/v1/api';
+async function api(action,params){
+  var sv=JSON.parse(sessionStorage.getItem('isb_user')||'{}');
+  var r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sv.token||'')},body:JSON.stringify(Object.assign({action:action},params||{}))});
+  var d=await r.json().catch(function(){return{ok:false}});
+  if(r.status===401)logout();
+  return d;
+}
+async function refreshMe(){
+  try{
+    var d=await api('me');
+    if(d.ok){var sv=JSON.parse(sessionStorage.getItem('isb_user'));sv.user=d.user;sessionStorage.setItem('isb_user',JSON.stringify(sv));applyAuth(sv)}
+  }catch(e){}
+}
+async function renderUsers(){
+  var body=document.getElementById('g-body');body.textContent='Загрузка…';
+  var d=await api('users');
+  if(!d.ok){body.textContent='Нет доступа или ошибка: '+(d.error||'');return}
+  var lead=window.CUR&&window.CUR.user.role==='lead';
+  var ST={pending:'ожидает',approved:'принят',rejected:'отклонён'};
+  var h='<div style="overflow-x:auto"><table class="tbl"><tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Последний вход</th><th></th></tr>';
+  d.users.forEach(function(u){
+    var nm=u.username?'@'+u.username:(u.first_name||u.telegram_id);
+    var rc=ROLE_RU[u.role]||u.role;
+    if(lead&&u.role!=='lead'){rc='<select class="rsel" data-uid="'+u.telegram_id+'">'+['reader','author','admin','lead'].map(function(r){return'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+ROLE_RU[r]+'</option>'}).join('')+'</select>'}
+    var act=u.role==='lead'?'':'<button class="mini" data-act="approved" data-id="'+u.telegram_id+'">Принять</button><button class="mini" data-act="rejected" data-id="'+u.telegram_id+'">Отклонить</button>';
+    h+='<tr><td>'+esc(nm)+'</td><td>'+rc+'</td><td>'+ST[u.status]+'</td><td>'+(u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—')+'</td><td>'+act+'</td></tr>';
+  });
+  body.innerHTML=h+'</table></div>';
+}
+document.getElementById('g-body').addEventListener('click',async function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;
+  var d=await api('set_status',{id:b.dataset.id,status:b.dataset.act});
+  if(!d.ok)alert('Ошибка: '+(d.error||''));
+  renderUsers();
+});
+document.getElementById('g-body').addEventListener('change',async function(e){
+  var sel=e.target.closest('.rsel');if(!sel)return;
+  var d=await api('set_role',{id:sel.dataset.uid,role:sel.value});
+  if(!d.ok)alert('Ошибка: '+(d.error||''));
+  renderUsers();
+});
+function logout(){
+  sessionStorage.removeItem('isb_user');
+  document.getElementById('auth-guest').style.display='block';
+  document.getElementById('auth-user').style.display='none';
+  document.body.className='';
+}
+try{
+  var saved=sessionStorage.getItem('isb_user');
+  if(saved){applyAuth(JSON.parse(saved));refreshMe()}
+}catch(e){sessionStorage.removeItem('isb_user')}
+try{
+  var tgCallback=sessionStorage.getItem('tg_callback');
+  if(tgCallback){sessionStorage.removeItem('tg_callback');onTelegramAuth(JSON.parse(tgCallback))}
+}catch(e){sessionStorage.removeItem('tg_callback')}
+/* ===== Статьи: маршрутизация, Полигон, очереди ===== */
+var STAT_RU={draft:'черновик',submitted:'на проверке',admin_rejected:'отклонено администратором',admin_approved:'одобрено, ждёт публикации',lead_rejected:'отклонено руководителем',published:'опубликовано'};
+var KIND_RU={object:'Объект',story:'Рассказ',hub:'Хаб'};
+var EDITABLE=['draft','admin_rejected','lead_rejected'];
+function G(){return document.getElementById('g-body')}
+function V(i){return document.getElementById(i).value}
+function setG(t,s){document.getElementById('g-title').textContent=t;document.getElementById('g-sub').textContent=s}
+var ACS={
+ cont:{safe:'Безопасный',euclid:'Евклид',keter:'Кетер',neutralized:'Нейтрализован',pending:'Ожидает присвоения',explained:'Объяснён',esoteric:'Эзотерический'},
+ sec:{thaumiel:'Таумиэль',apollyon:'Аполлион',archon:'Архонт',ticonderoga:'Тикондерога',hiemal:'Хиемаль',tiamat:'Тиамат',cernunnos:'Кернуннос',uncontained:'Не содержится'},
+ dis:{dark:'Тёмный',vlam:'Влам',keneq:'Кенек',ekhi:'Эхи',amida:'Амида'},
+ risk:{notice:'Уведомление',caution:'Осторожность',warning:'Предупреждение',danger:'Опасность',critical:'Критический'}};
+var ROM=['','I','II','III','IV','V','VI'];
+var SERIES={I:'001-999',II:'1000-1999',III:'2000-2999',IV:'3000-3999',V:'4000-4999',VI:'5000-5999'};
+var LEG=[['#888','Не назначен, нейтрализован или объяснён'],['#3cb043','Безопасный'],['#f0c020','Евклид'],['#e03c31','Кетер'],['#9b59b6','Таумиэль'],['#4a90e2','Нестандартный класс']];
+function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
+function objName(a){return a.kind==='object'&&a.scp_code?esc(a.scp_code)+(a.title?' — '+esc(a.title):''):esc(a.title)}
+function kindLabel(a){return a.kind==='object'?'Объект'+(a.scp_code?' '+esc(a.scp_code):''):KIND_RU[a.kind]}
+function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={already_reported:'вы уже жаловались на этот комментарий',own_comment:'на свой комментарий пожаловаться нельзя',too_fast:'слишком часто, подождите минуту',bad_body:'комментарий должен быть от 1 до 2000 символов',own_article:'свою статью оценивать нельзя',bad_parent:'комментарий, на который вы отвечаете, недоступен',bad_url:'ссылка на оригинал должна начинаться с http:// или https://',empty_origin:'для перевода укажите автора оригинала и ссылку на него',bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
+function acsBlock(a){var r=[['Класс содержания',ACS.cont[a.containment]],['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].filter(function(x){return x[1]});return r.length?'<table class="tbl">'+r.map(function(x){return'<tr><th>'+x[0]+'</th><td>'+x[1]+'</td></tr>'}).join('')+'</table>':''}
+function inl(t){return t.split(/(`[^`]+`)/).map(function(p,i){
+  if(i%2)return'<code>'+p.slice(1,-1)+'</code>';
+  p=p.replace(/\[([^\]]+)\]\(\s*([^)\s]+)\s*\)/g,function(m,x,u){
+    if(/^\/[a-z0-9-]+$/.test(u))return'<a href="'+u+'" data-slug="'+u.slice(1)+'">'+x+'</a>';
+    if(/^https?:\/\/[^\s]+$/.test(u))return'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+x+'</a>';
+    return m});
+  return p.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/~~(.+?)~~/g,'<s>$1</s>')}).join('')}
+function mdTable(r){var cells=function(x){return x.trim().replace(/^\||\|$/g,'').split('|').map(function(c){return inl(esc(c.trim()))})};
+  var hd=r.length>1&&/^\|[\s:|-]+\|$/.test(r[1].trim())&&/-/.test(r[1]),h='<div style="overflow-x:auto"><table class="tbl">',k=0;
+  if(hd){h+='<tr>'+cells(r[0]).map(function(c){return'<th>'+c+'</th>'}).join('')+'</tr>';k=2}
+  for(;k<r.length;k++)h+='<tr>'+cells(r[k]).map(function(c){return'<td>'+c+'</td>'}).join('')+'</tr>';
+  return h+'</table></div>'}
+function fmt(src){var L=String(src).replace(/\r/g,'').split('\n'),o=[],i=0,l,m;
+  while(i<L.length){l=L[i];
+    if(/^\s*$/.test(l)){i++;continue}
+    if(/^```/.test(l)){var c=[];i++;while(i<L.length&&!/^```/.test(L[i]))c.push(L[i++]);i++;o.push('<pre><code>'+esc(c.join('\n'))+'</code></pre>');continue}
+    if(m=/^\[\[collapsible\b([^\]]*)\]\]\s*$/i.exec(l)){
+      var dp=1,inn=[];i++;
+      while(i<L.length){if(/^\[\[collapsible\b[^\]]*\]\]\s*$/i.test(L[i]))dp++;else if(/^\[\[\/collapsible\]\]\s*$/i.test(L[i])){dp--;if(!dp)break}inn.push(L[i++])}
+      i++;
+      var sh=/show\s*=\s*"([^"]*)"/i.exec(m[1])||/show\s*=\s*'([^']*)'/i.exec(m[1]),hd=/hide\s*=\s*"([^"]*)"/i.exec(m[1])||/hide\s*=\s*'([^']*)'/i.exec(m[1]);
+      o.push('<details class="coll"><summary><span class="s-show">'+esc(sh?sh[1]:'Открыть')+'</span><span class="s-hide">'+esc(hd?hd[1]:'Свернуть')+'</span></summary><div class="coll-in">'+fmt(inn.join('\n'))+'</div></details>');continue}
+    if(m=/^(#{1,3})\s+(.*)$/.exec(l)){var n=m[1].length+1;o.push('<h'+n+'>'+inl(esc(m[2]))+'</h'+n+'>');i++;continue}
+    if(/^\s*(-{3,}|\*{3,})\s*$/.test(l)){o.push('<hr>');i++;continue}
+    if(/^>\s?/.test(l)){var q=[];while(i<L.length&&/^>\s?/.test(L[i]))q.push(L[i++].replace(/^>\s?/,''));o.push('<blockquote>'+inl(esc(q.join('\n'))).replace(/\n/g,'<br>')+'</blockquote>');continue}
+    if(/^\s*[-*]\s+/.test(l)){var u=[];while(i<L.length&&/^\s*[-*]\s+/.test(L[i]))u.push('<li>'+inl(esc(L[i++].replace(/^\s*[-*]\s+/,'')))+'</li>');o.push('<ul>'+u.join('')+'</ul>');continue}
+    if(/^\s*\d+[.)]\s+/.test(l)){var w=[];while(i<L.length&&/^\s*\d+[.)]\s+/.test(L[i]))w.push('<li>'+inl(esc(L[i++].replace(/^\s*\d+[.)]\s+/,'')))+'</li>');o.push('<ol>'+w.join('')+'</ol>');continue}
+    if(/^\|.*\|\s*$/.test(l)){var r=[];while(i<L.length&&/^\|.*\|\s*$/.test(L[i]))r.push(L[i++]);o.push(mdTable(r));continue}
+    var p=[];while(i<L.length&&!/^\s*$/.test(L[i])&&!/^(```|#{1,3}\s|>|\s*[-*]\s|\s*\d+[.)]\s|\||-{3,}\s*$|\[\[\/?collapsible)/.test(L[i]))p.push(L[i++]);
+    if(!p.length)p.push(L[i++]);
+    o.push('<p>'+inl(esc(p.join('\n'))).replace(/\n/g,'<br>')+'</p>')}
+  return o.join('')}
+function artLink(a){return '<li>'+(a.kind==='object'?'<span class="dot" style="background:'+dotColor(a)+'"></span>':'')+'<a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></li>'}
 
-async function checkTelegram(d: Record<string, string>, botToken: string) {
-  const { hash, ...rest } = d;
-  if (!hash) return false;
-  const str = Object.keys(rest).sort().map((k) => `${k}=${rest[k]}`).join("\n");
-  const key = await crypto.subtle.digest("SHA-256", enc.encode(botToken));
-  const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const calc = hex(await crypto.subtle.sign("HMAC", k, enc.encode(str)));
-  return calc === hash && Date.now() / 1000 - Number(rest.auth_date) < 86400;
+function pad(n){return String(n).padStart(n<1000?3:4,'0')}
+function renderObjects(arr){
+  var h='<p class="legend">'+LEG.map(function(l){return'<span class="dot" style="background:'+l[0]+'"></span>'+l[1]}).join(' &nbsp; ')+'</p>',g={};
+  arr.forEach(function(a){var k=Math.floor((a.scp_num||0)/100);(g[k]=g[k]||[]).push(a)});
+  Object.keys(g).sort(function(x,y){return x-y}).forEach(function(k){k=Number(k);h+='<h3>'+pad(k*100||1)+'-'+pad(k*100+99)+'</h3><ul class="alist">'+g[k].map(artLink).join('')+'</ul>'});
+  return h;
+}
+async function listView(kind,cls,q){
+  if(q)setG('Поиск: '+q,'Результаты');
+  else if(kind==='object')setG('Объекты '+SERIES[cls],'Опубликованные объекты');
+  else setG(kind==='story'?'Рассказы':'Хабы',kind==='story'?'Каталог':'Тематические подборки');
+  var b=G();b.textContent='Загрузка…';
+  var p=q?{q:q}:{kind:kind};if(cls&&!q)p.series=cls;
+  var d=await api('articles',p);
+  if(!d.ok){b.textContent='Ошибка загрузки';return}
+  if(!d.articles.length)b.innerHTML='<p>Пока ничего не опубликовано.</p>';
+  else b.innerHTML=(kind==='object'&&!q)?renderObjects(d.articles):'<ul class="alist">'+d.articles.map(artLink).join('')+'</ul>';
 }
 
-async function verify(token: string, secret: string) {
-  const [h, p, s] = token.split(".");
-  if (!h || !p || !s) return null;
-  if ((await sign(secret, `${h}.${p}`)) !== s) return null;
-  const pl = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/")));
-  return pl.exp > Date.now() / 1000 ? pl : null;
+async function openArticle(slug){
+  show('article');mark(null);setNav(false);
+  var T=document.getElementById('a-title'),M=document.getElementById('a-meta'),B=document.getElementById('a-body');
+  T.textContent='Загрузка…';M.textContent='';B.textContent='';var RB=document.getElementById('rbox');RB.hidden=true;RB.innerHTML='';
+  var d=await api('article',{slug:slug});
+  if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
+  var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
+  M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
+  window.ART=a;B.innerHTML='<div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead())+cmShell();loadRating();loadComments();
 }
 
-Deno.serve(async (req) => {
-  const origin = req.headers.get("origin") ?? "";
-  const cors = {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    "Access-Control-Allow-Headers": "content-type, authorization, apikey",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Vary": "Origin",
-  };
-  const reply = (obj: object, status = 200) =>
-    new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json" } });
-  const forbidden = () => reply({ ok: false, error: "forbidden" }, 403);
+/* Полигон */
+function artFoot(a,bar){
+  var h=authBlock(a);
+  if(a.published_at)h+='<div class="adate">Опубликовано: '+a.published_at.slice(0,10)+(a.updated_at&&a.updated_at.slice(0,16)>a.published_at.slice(0,16)?'. Последняя правка: '+a.updated_at.slice(0,16).replace('T',' '):'')+'</div>';
+  return '<div class="afoot">'+h+(bar?'<div class="aopts">'+artBar(a)+'</div>':'')+'</div>';
+}
+function authBlock(a){
+  var h='<div class="note"><b>Авторство и лицензия</b><br>';
+  if(a.origin==='translation')h+='Оригинал: '+(a.orig_title?'«'+esc(a.orig_title)+'» — ':'')+'автор '+esc(a.orig_author)+', <a href="'+esc(a.orig_url)+'" target="_blank" rel="noopener noreferrer">источник</a><br>Перевод: '+uLink(a.author_name,a.author_handle)+'<br>';
+  else h+='Автор: '+uLink(a.author_name,a.author_handle)+'<br>';
+  if(a.credits)h+='Источники и благодарности: '+esc(a.credits).replace(/\n/g,'<br>')+'<br>';
+  return h+'Лицензия: <a href="https://creativecommons.org/licenses/by-sa/3.0/deed.ru" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a></div>';
+}
+function authFields(a,dis){
+  return '<label>Происхождение</label><select id="e-orig"'+dis+'>'+opts(['original','translation'],a.origin||'original',{original:'Авторская работа',translation:'Перевод'})+'</select>'
+   +'<div id="e-tr"><label>Автор оригинала</label><input id="e-oa" maxlength="200" value="'+esc(a.orig_author||'')+'"'+dis+'>'
+   +'<label>Название оригинала</label><input id="e-ot" maxlength="200" value="'+esc(a.orig_title||'')+'"'+dis+'>'
+   +'<label>Ссылка на оригинал</label><input id="e-ou" maxlength="500" value="'+esc(a.orig_url||'')+'"'+dis+'></div>';
+}
+function isLead(){var c=window.CUR;return !!(c&&c.user&&c.user.role==='lead'&&c.user.status==='approved')}
+async function manageList(){
+  window.LISTMODE='manage';var b=G();b.textContent='Загрузка…';
+  var d=await api('manage_list');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  b.innerHTML=d.articles.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>Статья</th><th>Тип</th><th>Автор</th><th>Дата</th><th></th></tr>'+d.articles.map(function(a){
+    return'<tr><td><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td>'+(a.published_at||'').slice(0,10)+'</td><td><button class="mini" data-do="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-do="unpub" data-id="'+a.id+'">Снять</button> <button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button></td></tr>'}).join('')+'</table></div>':'<p>Опубликованных статей пока нет.</p>';
+}
+async function manageAct(o,id){
+  var t=o==='unpub'?'Снять статью с публикации? Она вернётся автору в черновики, ссылка освободится.':'Удалить статью навсегда? Это нельзя отменить.';
+  if(!confirm(t))return false;
+  var d=await api(o==='unpub'?'unpublish':'article_delete',{id:id});
+  if(!d.ok){alert('Ошибка: '+errText(d));return false}
+  return true;
+}
+function artBar(a){return'<p class="mdbar"><button class="mini" data-art="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-art="unpub" data-id="'+a.id+'">Снять с публикации</button> <button class="mini" data-art="del" data-id="'+a.id+'">Удалить</button></p>'}
+async function artAct(k,id){
+  if(k==='edit'){window.LISTMODE='manage';show('generic');mark(null);setG('Редактирование статьи','Опубликованная статья');polyEdit(id);return}
+  if(await manageAct(k,id))openPage('home');
+}
+async function polyList(){window.LISTMODE='poly';
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('my_articles');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  var h='<p><button class="mini" data-do="new">Новая статья</button></p>';
+  if(!d.articles.length)h+='<p>У вас пока нет статей.</p>';
+  else{
+    h+='<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Статус</th><th>Замечание</th><th></th></tr>';
+    d.articles.forEach(function(a){
+      h+='<tr><td><a href="#" data-do="edit" data-id="'+a.id+'">'+(objName(a)||'(без названия)')+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+STAT_RU[a.status]+(a.slug?' · <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть</a>':'')+'</td><td>'+(a.status.indexOf('rejected')>0?esc(a.note):'')+'</td><td>'+(EDITABLE.indexOf(a.status)>=0?'<button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button>':'')+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  b.innerHTML=h;
+}
+function opts(list,val,lab){return list.map(function(x){return'<option value="'+x+'"'+(x===val?' selected':'')+'>'+(lab?lab[x]:x)+'</option>'}).join('')}
+function sel(id,map,val,ph,dis){return'<select id="'+id+'"'+dis+'><option value="">'+ph+'</option>'+opts(Object.keys(map),val,map)+'</select>'}
+async function polyEdit(id){
+  var b=G(),a={kind:'object',scp_code:'',title:'',body:'',status:'draft'},rv=[];
+  if(id){b.textContent='Загрузка…';var d=await api('article_get',{id:id});if(!d.ok){b.textContent='Ошибка: '+errText(d);return}a=d.article;rv=d.reviews}
+  window.EDID=id||null;
+  var dis=EDITABLE.indexOf(a.status)<0&&!(a.status==='published'&&isLead())?' disabled':'';
+  var h='<p><button class="mini" data-do="back">← К списку</button> Статус: '+STAT_RU[a.status]+'</p>';
+  rv.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
+  h+='<div class="fm"><label>Тип статьи</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
+   +'<div id="e-obj"><label>Номер объекта</label><div class="pfx"><span>SCP-</span><input id="e-code" maxlength="8" value="'+esc((a.scp_code||'').replace(/^SCP-/,''))+'"'+dis+'></div></div>'
+   +'<label id="e-tl"></label><input id="e-title" maxlength="200" value="'+esc(a.title)+'"'+dis+'>'
+   +'<div id="e-acs"><label>Класс содержания</label>'+sel('e-cont',ACS.cont,a.containment,'— выберите —',dis)
+   +'<label>Вторичный класс</label>'+sel('e-sec',ACS.sec,a.secondary,'—',dis)
+   +'<label>Класс нарушения</label>'+sel('e-dis',ACS.dis,a.disruption,'—',dis)
+   +'<label>Класс риска</label>'+sel('e-risk',ACS.risk,a.risk,'—',dis)+'</div>'
+   +authFields(a,dis)+'<label>Текст</label>'+(dis?'':MDBAR)+'<textarea id="e-body" rows="18"'+dis+'>'+esc(a.body)+'</textarea><label>Источники и благодарности</label><textarea id="e-cr" rows="3" maxlength="2000"'+dis+'>'+esc(a.credits||'')+'</textarea><div id="e-prev"></div>';
+  if(!dis)h+=a.status==='published'?'<button class="mini" data-do="save">Сохранить изменения</button> <a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">открыть статью</a>':'<button class="mini" data-do="save">Сохранить черновик</button> <button class="mini" data-do="submit">Завершить и отправить на проверку</button>';
+  b.innerHTML=h+'</div><p id="e-msg"></p>';
+  var k=document.getElementById('e-kind');
+  function sync(){var o=k.value==='object';document.getElementById('e-obj').style.display=o?'block':'none';document.getElementById('e-acs').style.display=o?'block':'none';
+    document.getElementById('e-tl').textContent={object:'Название объекта',story:'Название рассказа',hub:'Название хаба'}[k.value]}
+  k.onchange=sync;sync();
+  var og=document.getElementById('e-orig');function sync2(){document.getElementById('e-tr').style.display=og.value==='translation'?'block':'none'}og.onchange=sync2;sync2();
+}
+function codeVal(){var c=V('e-code').trim().toUpperCase().replace(/^SCP-/,'');return c?'SCP-'+c:''}
+var MD={b:['**','**','текст'],i:['*','*','текст'],s:['~~','~~','текст'],c:['`','`','код'],h:['## ','','Заголовок'],l:['- ','','пункт'],n:['1. ','','пункт'],q:['> ','','цитата'],k:['[','](https://)','текст'],r:['\n---\n','',''],p:['\n[[collapsible show="Открыть" hide="Свернуть"]]\n','\n[[/collapsible]]\n','текст'],f:['\n```\n','\n```\n','код'],t:['\n| Колонка 1 | Колонка 2 |\n| --- | --- |\n| ','  |  |\n','текст']};
+var MDBAR='<div class="mdbar">'+[['b','Ж'],['i','К'],['s','Зачёркнутый'],['c','Код'],['h','Заголовок'],['l','Список'],['n','Нумерация'],['q','Цитата'],['k','Ссылка'],['r','Линия'],['p','Плашка'],['f','Блок кода'],['t','Таблица']].map(function(x){return'<button type="button" class="mini" data-md="'+x[0]+'">'+x[1]+'</button>'}).join(' ')+' <button type="button" class="mini" data-do="preview">Предпросмотр</button></div>';
+function applyMd(k){var ta=document.getElementById('e-body'),m=MD[k],s=ta.selectionStart,e=ta.selectionEnd,t=ta.value.slice(s,e)||m[2];
+  ta.value=ta.value.slice(0,s)+m[0]+t+m[1]+ta.value.slice(e);ta.focus();ta.selectionStart=s+m[0].length;ta.selectionEnd=s+m[0].length+t.length}
+async function polySave(){
+  var m=document.getElementById('e-msg');
+  var d=await api('article_save',{id:window.EDID,kind:V('e-kind'),scp_code:codeVal(),title:V('e-title'),containment:V('e-cont'),secondary:V('e-sec'),disruption:V('e-dis'),risk:V('e-risk'),body:V('e-body'),origin:V('e-orig'),orig_author:V('e-oa'),orig_title:V('e-ot'),orig_url:V('e-ou'),credits:V('e-cr')});
+  if(!d.ok){m.textContent='Ошибка: '+errText(d);return false}
+  window.EDID=d.id;m.textContent='Сохранено';return true;
+}
+async function polySubmit(){
+  if(!(await polySave()))return;
+  var d=await api('article_submit',{id:window.EDID});
+  if(d.ok)polyList();else document.getElementById('e-msg').textContent='Ошибка: '+errText(d);
+}
 
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  if (req.method !== "POST") return reply({ ok: false, error: "method" }, 405);
+/* Очереди проверки и публикации */
+async function queueView(stage){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('queue',{stage:stage});
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  b.innerHTML=d.articles.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>Название</th><th>Тип</th><th>Автор</th><th></th></tr>'+d.articles.map(function(a){
+    return'<tr><td>'+objName(a)+'</td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td><button class="mini" data-do="open" data-id="'+a.id+'" data-stage="'+stage+'">Открыть</button></td></tr>'}).join('')+'</table></div>':'<p>Очередь пуста.</p>';
+}
+async function reviewView(id,stage){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('article_get',{id:id});
+  if(!d.ok){b.textContent='Ошибка: '+(d.error||'');return}
+  var a=d.article;window.RV={id:id,stage:stage};
+  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p><div class="art">'+fmt(a.body)+'</div>'+artFoot(a);
+  d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
+  h+='<div class="fm"><label>Комментарий</label><textarea id="r-com" rows="4"></textarea>';
+  if(stage==='lead')h+='<label>Ссылка</label><div class="pfx"><span>'+esc(location.host)+'/</span><input id="r-slug" maxlength="80" value="'+esc((a.scp_code||'').toLowerCase())+'"></div>';
+  h+=(stage==='lead'?'<button class="mini" data-do="pub">Опубликовать</button> ':'<button class="mini" data-do="rv-ok">Одобрить</button> ')+'<button class="mini" data-do="rv-no">Отклонить</button></div><p id="r-msg"></p>';
+  b.innerHTML=h;
+}
+async function doReview(o){
+  var m=document.getElementById('r-msg'),R=window.RV,d;
+  if(o==='pub')d=await api('publish',{id:R.id,slug:V('r-slug').trim().toLowerCase().replace(/^https?:\/\/[^\/]+/,'').replace(/[?#].*$/,'').replace(/^\/+|\/+$/g,'')});
+  else d=await api('review',{id:R.id,decision:o==='rv-ok'?'approved':'rejected',comment:V('r-com')});
+  if(!d.ok){m.textContent='Ошибка: '+errText(d);return}
+  if(o==='pub')alert('Опубликовано: '+location.origin+'/'+d.slug);
+  queueView(R.stage);
+}
+G().addEventListener('click',async function(e){
+  var md=e.target.closest('[data-md]');if(md){e.preventDefault();applyMd(md.dataset.md);return}var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
+  if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')(window.LISTMODE==='manage'?manageList:polyList)();
+  else if(o==='preview'){document.getElementById('e-prev').innerHTML='<div class="art">'+fmt(V('e-body'))+'</div>'}
+  else if(o==='unpub'||o==='del'){if(await manageAct(o,b.dataset.id))(window.LISTMODE==='manage'?manageList:polyList)()}
+  else if(o==='save')polySave();else if(o==='submit')polySubmit();
+  else if(o==='open')reviewView(b.dataset.id,b.dataset.stage);else if(o==='qback')queueView(b.dataset.stage);
+  else doReview(o);
+});
 
-  let dbg = false;
-  try {
-    const body = await req.json().catch(() => ({}));
-    const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const secret = Deno.env.get("SESSION_SECRET")!;
-
-    // ---------- уведомления в Telegram ----------
-    const SITE = "https://scpnetwork.github.io"; // при смене домена поменять здесь
-    const tgToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-    const H = (t: unknown) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const A = (path: string, label: string) => `<a href="${SITE}${path}">${H(label)}</a>`;
-    const ROLE_NAME: Record<string, string> = { reader: "читатель", author: "автор", admin: "администратор", lead: "руководитель" };
-    const nm = (x: any) => (x.scp_code ? `${x.scp_code} — ${x.title}` : (x.title || "без названия"));
-    const who = (p: any) => (p.username ? "@" + p.username : (p.first_name ?? "пользователь"));
-    const bg = (p: Promise<unknown>) => {
-      const q = p.catch(() => {});
-      const er = (globalThis as any).EdgeRuntime;
-      if (er?.waitUntil) er.waitUntil(q);
-    };
-    const tgSend = async (chat: string | number, text: string) => {
-      try {
-        const r = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true }),
-        });
-        const j = await r.json().catch(() => ({}));
-        return { ok: !!j.ok, description: String(j.description ?? "") };
-      } catch (e) {
-        return { ok: false, description: String((e as any)?.message ?? e) };
-      }
-    };
-    const notifyUsers = (ids: Array<string | number>, text: string) => bg((async () => {
-      const u = [...new Set(ids.map(Number))].filter(Number.isFinite);
-      if (!u.length) return;
-      const { data } = await db.from("profiles").select("telegram_id").in("telegram_id", u).eq("notify", true);
-      await Promise.allSettled((data ?? []).map((p: any) => tgSend(p.telegram_id, text)));
-    })());
-    const notifyStaff = (minRank: number, text: string, exclude?: string) => bg((async () => {
-      const { data } = await db.from("profiles").select("telegram_id")
-        .eq("status", "approved").eq("notify", true).in("role", minRank >= 4 ? ["lead"] : ["admin", "lead"]);
-      await Promise.allSettled((data ?? []).filter((p: any) => String(p.telegram_id) !== exclude)
-        .map((p: any) => tgSend(p.telegram_id, text)));
-    })());
-
-    if (body.action === "login") {
-      const u: Record<string, string> = {};
-      for (const [k, v] of Object.entries(body.user ?? {})) u[k] = String(v);
-      if (!(await checkTelegram(u, Deno.env.get("TELEGRAM_BOT_TOKEN")!))) return reply({ ok: false, error: "bad_signature" }, 401);
-      const id = Number(u.id);
-      const { data: ex } = await db.from("profiles").select("telegram_id").eq("telegram_id", id).maybeSingle();
-      // role и status не передаём: у новых сработают значения по умолчанию (reader, pending)
-      const { error: upErr } = await db.from("profiles").upsert(
-        { telegram_id: id, username: u.username ?? null, first_name: u.first_name ?? null, photo_url: u.photo_url ?? null, last_login: new Date().toISOString() },
-        { onConflict: "telegram_id" },
-      );
-      if (upErr) throw upErr;
-      if (!ex) notifyStaff(3, `👤 Новая заявка на доступ: <b>${H(who(u))}</b>\n${A("/#users", "Открыть заявки")}`);
-      // адрес профиля: ник из Telegram, а без ника случайный user-xxxxxxxx
-      const { data: cur } = await db.from("profiles").select("handle").eq("telegram_id", id).maybeSingle();
-      const want = u.username ? u.username.toLowerCase() : null;
-      if (want && want !== cur?.handle) await db.from("profiles").update({ handle: want }).eq("telegram_id", id); // при конфликте имени ошибка игнорируется
-      const { data: cur2 } = await db.from("profiles").select("handle").eq("telegram_id", id).maybeSingle();
-      if (!cur2?.handle) await db.from("profiles").update({ handle: "user-" + crypto.randomUUID().slice(0, 8) }).eq("telegram_id", id);
-      const { data: prof, error: selErr } = await db.from("profiles").select("role,status").eq("telegram_id", id).single();
-      if (selErr) throw selErr;
-      const head = b64s(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-      const pay = b64s(JSON.stringify({ sub: id, exp: Math.floor(Date.now() / 1000) + 7 * 86400 }));
-      const token = `${head}.${pay}.${await sign(secret, `${head}.${pay}`)}`;
-      return reply({ ok: true, token, telegram: { id, username: u.username ?? null, first_name: u.first_name ?? null }, user: { role: prof.role, status: prof.status } });
+/* Заявки и пользователи */
+var ST_RU={pending:'ожидает',approved:'принят',rejected:'отклонён'};
+window.UF=window.UF||'';window.UQ='';window.USERS=[];
+async function renderUsers(){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('users');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  window.USERS=d.users;
+  if(!window.UF)window.UF=d.users.some(function(u){return u.status==='pending'})?'pending':'all';
+  window.UQ='';drawUsers();
+}
+function drawUsers(){
+  var U=window.USERS,cnt={all:U.length,pending:0,approved:0,rejected:0};
+  U.forEach(function(u){cnt[u.status]++});
+  var T=[['pending','Ожидают'],['approved','Приняты'],['rejected','Отклонены'],['all','Все']];
+  var h='<p>'+T.map(function(t){return'<button class="mini" data-uf="'+t[0]+'"'+(window.UF===t[0]?' style="background:#e8e8e8;color:#000"':'')+'>'+t[1]+' ('+cnt[t[0]]+')</button>'}).join(' ')+'</p>'
+   +'<div class="fm"><input id="u-q" placeholder="Поиск по нику или имени" value="'+esc(window.UQ)+'"></div><div id="u-tbl"></div>';
+  G().innerHTML=h;drawUsersTable();
+}
+function drawUsersTable(){
+  var lead=isLead(),me=window.CUR&&window.CUR.telegram?String(window.CUR.telegram.id):'',q=window.UQ.toLowerCase();
+  var L=window.USERS.filter(function(u){
+    if(window.UF!=='all'&&u.status!==window.UF)return false;
+    return !q||((u.username||'')+' '+(u.first_name||'')).toLowerCase().indexOf(q)>=0;
+  });
+  if(!L.length){document.getElementById('u-tbl').innerHTML='<p>Никого нет.</p>';return}
+  var h='<div style="overflow-x:auto"><table class="tbl"><tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Регистрация</th><th>Последний вход</th><th></th></tr>';
+  L.forEach(function(u){
+    var id=u.telegram_id,mine=String(id)===me,isl=u.role==='lead';
+    var nm=u.username?'<a href="https://t.me/'+esc(u.username)+'" target="_blank" rel="noopener noreferrer">@'+esc(u.username)+'</a>':esc(u.first_name||id);
+    var rc=ROLE_RU[u.role]||u.role;
+    if(lead&&!isl&&!mine)rc='<select class="rsel2" data-uid="'+id+'">'+['reader','author','admin','lead'].map(function(r){return'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+ROLE_RU[r]+'</option>'}).join('')+'</select>';
+    var act='';
+    if(!isl&&!mine){
+      if(u.status==='pending'){act='<button class="mini" data-ua="approved" data-id="'+id+'">Принять</button> '+(lead?'<button class="mini" data-ua="author" data-id="'+id+'">Принять автором</button> ':'')+'<button class="mini" data-ua="rejected" data-id="'+id+'">Отклонить</button>'}
+      else if(u.status==='approved')act='<button class="mini" data-ua="rejected" data-id="'+id+'">Заблокировать</button>';
+      else act='<button class="mini" data-ua="approved" data-id="'+id+'">Вернуть</button>';
     }
+    h+='<tr><td>'+nm+(mine?' (вы)':'')+'<br><small>ID '+id+'</small></td><td>'+rc+'</td><td>'+ST_RU[u.status]+'</td><td>'+(u.created_at||'').slice(0,10)+'</td><td>'+(u.last_login?esc(u.last_login.slice(0,16).replace('T',' ')):'—')+'</td><td>'+act+'</td></tr>';
+  });
+  document.getElementById('u-tbl').innerHTML=h+'</table></div>';
+}
+async function userAct(id,act){
+  var d;
+  if(act==='author'){d=await api('set_status',{id:id,status:'approved'});if(d.ok)d=await api('set_role',{id:id,role:'author'})}
+  else d=await api('set_status',{id:id,status:act});
+  if(!d.ok)alert('Ошибка: '+errText(d));
+  await renderUsers();
+}
+G().addEventListener('click',function(e){
+  var f=e.target.closest('[data-uf]');if(f){window.UF=f.dataset.uf;drawUsers();return}
+  var a=e.target.closest('[data-ua]');if(a)userAct(a.dataset.id,a.dataset.ua);
+});
+G().addEventListener('input',function(e){if(e.target.id==='u-q'){window.UQ=e.target.value;drawUsersTable()}});
+G().addEventListener('change',async function(e){
+  var sel=e.target.closest('.rsel2');if(!sel)return;
+  var d=await api('set_role',{id:sel.dataset.uid,role:sel.value});
+  if(!d.ok)alert('Ошибка: '+errText(d));
+  renderUsers();
+});
 
-    // ---------- публичные действия: без входа ----------
-    const softAuth = async () => {
-      const t = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-      if (!t) return null;
-      try {
-        const p = await verify(t, secret);
-        if (!p) return null;
-        const { data: m } = await db.from("profiles").select("telegram_id,role,status").eq("telegram_id", p.sub).maybeSingle();
-        if (!m) return null;
-        return { id: String(m.telegram_id), rank: m.status === "approved" ? (RANK[m.role] ?? 0) : 0 };
-      } catch { return null; }
-    };
-    const pubArticle = async (id: unknown) => {
-      const s = String(id ?? "");
-      if (!UUID_RE.test(s)) return null;
-      const { data } = await db.from("articles").select("id,author_id,status,title,slug,scp_code").eq("id", s).maybeSingle();
-      return data && data.status === "published" ? data : null;
-    };
-
-    if (body.action === "rating") {
-      const art = await pubArticle(body.article_id);
-      if (!art) return reply({ ok: false, error: "not_found" }, 404);
-      const counts = await Promise.all([1, 2, 3, 4, 5].map(async (n) => {
-        const { count } = await db.from("article_ratings").select("*", { count: "exact", head: true })
-          .eq("article_id", art.id).eq("stars", n);
-        return count ?? 0;
-      }));
-      const total = counts.reduce((x, y) => x + y, 0);
-      const avg = total ? counts.reduce((s2, c, i) => s2 + c * (i + 1), 0) / total : 0;
-      const u = await softAuth();
-      let mine = 0;
-      if (u) {
-        const { data } = await db.from("article_ratings").select("stars")
-          .eq("article_id", art.id).eq("user_id", u.id).maybeSingle();
-        mine = data?.stars ?? 0;
-      }
-      return reply({ ok: true, avg, count: total, dist: counts, mine, own: !!u && art.author_id === u.id });
+/* Рейтинг и комментарии */
+var ROLE_C={reader:'читатель',author:'автор',admin:'администратор',lead:'руководитель'};
+function acted(){var c=window.CUR;return !!(c&&c.user&&c.user.status==='approved')}
+function isMod(){var c=window.CUR;return !!(acted()&&(c.user.role==='admin'||c.user.role==='lead'))}
+function dstr(t){return (t||'').slice(0,16).replace('T',' ')}
+function plural(n,a,b,c){n=Math.abs(n)%100;var k=n%10;return n>10&&n<20?c:k===1?a:k>1&&k<5?b:c}
+async function loadRating(){
+  var A=window.ART,el=document.getElementById('rbox');if(!A||!el)return;
+  var d=await api('rating',{article_id:A.id});el=document.getElementById('rbox');if(!d.ok||!el)return;
+  window.RT=d;var st='';
+  for(var i=1;i<=5;i++)st+='<span class="star'+(d.mine>=i?' on':'')+'" data-star="'+i+'">★</span>';
+  el.hidden=false;el.innerHTML='<div><a href="#" data-rt="dist">рейтинг: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b></a> <small>· '+d.count+' '+plural(d.count,'голос','голоса','голосов')+'</small></div><div class="stars">'+st+(d.mine?' <span class="star" data-star="0" title="Убрать оценку">✕</span>':'')+'</div>';
+}
+function showDist(){
+  var d=window.RT;if(!d)return;var mx=Math.max.apply(null,d.dist.concat(1));
+  var h='<div class="mback"><div class="mwin"><div class="mh"><b>Оценки</b><span class="star" data-mclose="1">✕</span></div><p>Средняя оценка: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b> · проголосовало: '+d.count+'</p>';
+  for(var i=5;i>=1;i--)h+='<div class="mrow"><span>'+i+' ★</span><span class="bar"><i style="width:'+Math.round(d.dist[i-1]/mx*100)+'%"></i></span><span>'+d.dist[i-1]+'</span></div>';
+  document.body.insertAdjacentHTML('beforeend',h+'</div></div>');
+}
+function cmShell(){return'<details class="coll" id="cm-det"><summary><span class="s-show">Открыть комментарии (<span id="cm-cnt">…</span>)</span><span class="s-hide">Свернуть комментарии</span></summary><div class="coll-in" id="cm-box">Загрузка…</div></details>'}
+function cmForm(pid,eid,txt){
+  if(!pid&&!eid&&!acted())return'<p class="cm-hint">'+(window.CUR&&window.CUR.user?'Комментировать можно после одобрения заявки.':'Чтобы комментировать, войдите на сайт.')+'</p>';
+  return'<div class="fm cm-f'+(pid||eid?' inl':'')+'" data-pid="'+(pid||'')+'" data-eid="'+(eid||'')+'"><textarea rows="3" maxlength="2000">'+esc(txt||'')+'</textarea><button class="mini" data-cm="send">'+(eid?'Сохранить':'Отправить')+'</button>'+(pid||eid?' <button class="mini" data-cm="cancel">Отмена</button>':'')+' <span class="cm-err"></span></div>';
+}
+function cmTree(pid,dep){
+  var by={};window.CMS.forEach(function(c){by[c.id]=c});
+  return window.CMS.filter(function(c){return (c.parent_id||null)===pid}).map(function(c){
+    var nk=window.CMS.filter(function(x){return x.parent_id===c.id}).length;
+    var h='<div class="cm" id="c-'+c.id+'"><div class="cm-h">'+(c.deleted?'<i>удалён</i>':uLink(c.author_name,c.author_handle,1)+' <span class="role">'+(ROLE_C[c.role]||'')+'</span>')+' <span class="dt">'+dstr(c.created_at)+(c.edited_at?' (изменён)':'')+'</span></div>';
+    if(c.deleted)h+='<div class="cm-b"><i>комментарий удалён</i></div>';
+    else{
+      var p=c.parent_id&&by[c.parent_id];
+      if(p&&!p.deleted)h+='<div class="cm-q">В ответ на '+esc(p.author_name)+': '+esc(p.body.slice(0,80))+(p.body.length>80?'…':'')+'</div>';
+      h+='<div class="cm-b">'+inl(esc(c.body)).replace(/\n/g,'<br>')+'</div><div class="cm-a">'
+       +(acted()?'<a href="#" data-cm="reply" data-id="'+c.id+'">Ответить</a> ':'')+(c.mine?'<a href="#" data-cm="edit" data-id="'+c.id+'">Изменить</a> ':'')
+       +(c.mine||isMod()?'<a href="#" data-cm="del" data-id="'+c.id+'">Удалить</a> ':'')+(acted()&&!c.mine?'<a href="#" data-cm="report" data-id="'+c.id+'">Пожаловаться</a>':'')+'</div>';
     }
+    if(nk)h+='<div class="cm-a"><a href="#" data-cm="fold" data-id="'+c.id+'">▾ '+nk+' '+plural(nk,'ответ','ответа','ответов')+'</a></div>';
+    return h+'<div class="cm-kids'+(dep>=4?' flat':'')+'" id="k-'+c.id+'">'+cmTree(c.id,dep+1)+'</div></div>';
+  }).join('');
+}
+async function loadComments(){
+  var A=window.ART,box=document.getElementById('cm-box');if(!A||!box)return;
+  var d=await api('comments',{article_id:A.id});box=document.getElementById('cm-box');if(!box)return;
+  if(!d.ok){box.textContent='Не удалось загрузить комментарии';return}
+  window.CMS=d.comments;
+  document.getElementById('cm-cnt').textContent=d.comments.filter(function(c){return !c.deleted}).length;
+  box.innerHTML=cmForm()+(d.comments.length?cmTree(null,0):'<p class="cm-hint">Комментариев пока нет.</p>');
+}
+async function cmSend(f){
+  var t=f.querySelector('textarea').value.trim(),e=f.dataset.eid,er=f.querySelector('.cm-err');
+  var d=e?await api('comment_edit',{id:e,body:t}):await api('comment_add',{article_id:window.ART.id,parent_id:f.dataset.pid||null,body:t});
+  if(!d.ok){er.textContent=errText(d);return}
+  loadComments();
+}
+document.addEventListener('click',async function(e){
+  var s=e.target.closest('[data-star]');
+  if(s){
+    if(!acted()){alert('Чтобы оценивать, войдите на сайт и дождитесь одобрения заявки.');return}
+    if(window.RT&&window.RT.own){alert('Свою статью оценивать нельзя.');return}
+    var d=await api('rate',{article_id:window.ART.id,stars:Number(s.dataset.star)});
+    if(!d.ok)alert('Ошибка: '+errText(d));
+    loadRating();return;
+  }
+  if(e.target.closest('[data-rt]')){e.preventDefault();showDist();return}
+  var mb=e.target.closest('.mback');
+  if(e.target.closest('[data-mclose]')||(mb&&e.target===mb)){var m=document.querySelector('.mback');if(m)m.remove();return}
+  var c=e.target.closest('[data-cm]');if(!c)return;e.preventDefault();
+  var k=c.dataset.cm,id=c.dataset.id,box=id&&document.getElementById('c-'+id);
+  if(k==='send')cmSend(c.closest('.cm-f'));
+  else if(k==='cancel')loadComments();
+  else if(k==='reply'){document.querySelectorAll('.cm-f.inl').forEach(function(x){x.remove()});box.querySelector('.cm-kids').insertAdjacentHTML('beforebegin',cmForm(id))}
+  else if(k==='edit'){
+    document.querySelectorAll('.cm-f.inl').forEach(function(x){x.remove()});
+    var cm=window.CMS.filter(function(x){return x.id===id})[0],b=box.querySelector('.cm-b');
+    b.insertAdjacentHTML('afterend',cmForm(null,id,cm.body));
+  }
+  else if(k==='del'){if(confirm('Удалить комментарий?')){var d2=await api('comment_delete',{id:id});if(!d2.ok)alert('Ошибка: '+errText(d2));loadComments()}}
+  else if(k==='report'){var why=prompt('Причина жалобы (можно оставить пустой):');if(why===null)return;var d3=await api('comment_report',{id:id,reason:why});alert(d3.ok?'Жалоба отправлена модераторам.':'Ошибка: '+errText(d3))}
+  else if(k==='fold'){var kk=document.getElementById('k-'+id),hid=kk.style.display==='none';kk.style.display=hid?'':'none';c.textContent=c.textContent.replace(/^[▾▸]/,hid?'▾':'▸')}
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.querySelector('.mback');if(m)m.remove()}});
 
-    if (body.action === "comments") {
-      const art = await pubArticle(body.article_id);
-      if (!art) return reply({ ok: false, error: "not_found" }, 404);
-      const { data, error } = await db.from("article_comments")
-        .select("id,parent_id,author_id,body,created_at,edited_at,deleted")
-        .eq("article_id", art.id).order("created_at", { ascending: true }).limit(1000);
-      if (error) throw error;
-      const ids = [...new Set(data.map((c: any) => Number(c.author_id)))].filter(Number.isFinite);
-      const pm: Record<string, any> = {};
-      if (ids.length) {
-        const { data: ps } = await db.from("profiles").select("telegram_id,username,first_name,role,handle").in("telegram_id", ids);
-        for (const p of ps ?? []) pm[String(p.telegram_id)] = p;
-      }
-      const u = await softAuth();
-      return reply({ ok: true, comments: data.map((c: any) => {
-        const p = pm[c.author_id];
-        return {
-          id: c.id, parent_id: c.parent_id, deleted: c.deleted, created_at: c.created_at, edited_at: c.edited_at,
-          body: c.deleted ? "" : c.body,
-          author_name: c.deleted ? "" : (p?.username ? "@" + p.username : (p?.first_name ?? "пользователь")),
-          role: c.deleted ? "" : (p?.role ?? "reader"),
-          author_handle: c.deleted ? "" : (p?.handle ?? ""),
-          mine: !!u && u.id === c.author_id,
-        };
-      }) });
-    }
-
-    if (body.action === "profile") {
-      const handle = String(body.handle ?? "").toLowerCase();
-      if (!/^[a-z0-9_-]{3,40}$/.test(handle)) return reply({ ok: false, error: "not_found" }, 404);
-      const { data: p } = await db.from("profiles")
-        .select("telegram_id,username,first_name,role,status,photo_url,bio,handle,created_at,show_ratings,show_comments")
-        .eq("handle", handle).maybeSingle();
-      const v = await softAuth();
-      const isMe = !!v && !!p && v.id === String(p.telegram_id);
-      const staff = !!v && v.rank >= 3;
-      if (!p || (p.status !== "approved" && !isMe && !staff)) return reply({ ok: false, error: "not_found" }, 404);
-      const uid = String(p.telegram_id);
-      const { data: arts } = await db.from("articles").select("id,slug,scp_code,title,kind,origin,published_at")
-        .eq("author_id", uid).eq("status", "published").order("published_at", { ascending: false }).limit(200);
-      const aids = (arts ?? []).map((x: any) => x.id);
-      let votes = 0, avg = 0;
-      if (aids.length) {
-        const cn = await Promise.all([1, 2, 3, 4, 5].map(async (n) => {
-          const { count } = await db.from("article_ratings").select("*", { count: "exact", head: true })
-            .in("article_id", aids).eq("stars", n);
-          return count ?? 0;
-        }));
-        votes = cn.reduce((x, y) => x + y, 0);
-        avg = votes ? cn.reduce((s2, c, i) => s2 + c * (i + 1), 0) / votes : 0;
-      }
-      const { count: ccount } = await db.from("article_comments").select("*", { count: "exact", head: true })
-        .eq("author_id", uid).eq("deleted", false);
-      const { count: rcount } = await db.from("article_ratings").select("*", { count: "exact", head: true }).eq("user_id", uid);
-      const withArticles = async (rows: any[]) => {
-        const ids = [...new Set(rows.map((r) => r.article_id))];
-        if (!ids.length) return [];
-        const { data: ar } = await db.from("articles").select("id,slug,scp_code,title").in("id", ids).eq("status", "published");
-        const m: Record<string, any> = Object.fromEntries((ar ?? []).map((x: any) => [x.id, x]));
-        return rows.filter((r) => m[r.article_id]).map((r) => ({ ...r, article_slug: m[r.article_id].slug, article_name: nm(m[r.article_id]) }));
-      };
-      let comments: any[] | null = null, ratings: any[] | null = null;
-      if (p.show_comments || isMe || staff) {
-        const { data } = await db.from("article_comments").select("id,article_id,body,created_at")
-          .eq("author_id", uid).eq("deleted", false).order("created_at", { ascending: false }).limit(50);
-        comments = (await withArticles(data ?? [])).map((c: any) => ({ id: c.id, body: String(c.body).slice(0, 200), created_at: c.created_at, article_slug: c.article_slug, article_name: c.article_name }));
-      }
-      if (p.show_ratings || isMe) {
-        const { data } = await db.from("article_ratings").select("article_id,stars,updated_at")
-          .eq("user_id", uid).order("updated_at", { ascending: false }).limit(50);
-        ratings = (await withArticles(data ?? [])).map((r: any) => ({ stars: r.stars, updated_at: r.updated_at, article_slug: r.article_slug, article_name: r.article_name }));
-      }
-      return reply({
-        ok: true,
-        profile: {
-          handle: p.handle, name: who(p), role: p.role, status: isMe || staff ? p.status : "approved",
-          photo_url: p.photo_url, bio: p.bio, created_at: p.created_at, is_me: isMe,
-          target_id: staff ? uid : null,
-          privacy: isMe ? { show_comments: p.show_comments, show_ratings: p.show_ratings } : null,
-        },
-        stats: { articles: (arts ?? []).length, votes, avg, comments: ccount ?? 0, ratings: rcount ?? 0 },
-        articles: arts ?? [], comments, ratings,
-      });
-    }
-
-    if (body.action === "article") {
-      const slug = String(body.slug ?? "");
-      if (!SLUG_RE.test(slug)) return reply({ ok: false, error: "not_found" }, 404);
-      const { data } = await db.from("articles")
-        .select("id,slug,scp_code,title,kind,containment,secondary,disruption,risk,body,published_at,updated_at,author_id,origin,orig_author,orig_title,orig_url,credits")
-        .eq("slug", slug).eq("status", "published").maybeSingle();
-      if (!data) return reply({ ok: false, error: "not_found" }, 404);
-      const { author_id, ...pub } = data as any;
-      const { data: au } = await db.from("profiles").select("username,first_name,handle")
-        .eq("telegram_id", Number(author_id)).maybeSingle();
-      const author_name = au?.username ? "@" + au.username : (au?.first_name ?? "автор");
-      return reply({ ok: true, article: { ...pub, author_name, author_handle: au?.handle ?? null } });
-    }
-
-    if (body.action === "articles") {
-      let q = db.from("articles").select("slug,scp_code,scp_num,series,title,kind,containment,secondary,disruption,published_at")
-        .eq("status", "published").limit(500);
-      q = body.kind === "object"
-        ? q.order("scp_num", { ascending: true }).order("scp_code", { ascending: true })
-        : q.order("published_at", { ascending: false });
-      if (KINDS.includes(body.kind)) q = q.eq("kind", body.kind);
-      const sr = ROMAN.indexOf(String(body.series ?? "")) > 0 ? ROMAN.indexOf(String(body.series)) : Number(body.series);
-      if (sr >= 1 && sr <= 6) q = q.eq("series", sr);
-      const s = String(body.q ?? "").trim().slice(0, 60).replace(/[^\p{L}\p{N} -]/gu, " ").trim();
-      if (s) q = q.or(`title.ilike."%${s}%",scp_code.ilike."%${s}%"`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return reply({ ok: true, articles: data });
-    }
-
-    const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const pl = await verify(token, secret);
-    if (!pl) return reply({ ok: false, error: "unauthorized" }, 401);
-
-    const { data: me } = await db.from("profiles")
-      .select("telegram_id,username,first_name,role,status").eq("telegram_id", pl.sub).single();
-    if (!me) return reply({ ok: false, error: "unauthorized" }, 401);
-
-    const rank = me.status === "approved" ? (RANK[me.role] ?? 0) : 0;
-    const myId = String(me.telegram_id);
-    dbg = rank >= 4;
-
-    if (body.action === "me") return reply({ ok: true, user: { role: me.role, status: me.status } });
-
-    if (body.action === "users") {
-      if (rank < 3) return forbidden();
-      const { data, error } = await db.from("profiles")
-        .select("telegram_id,username,first_name,role,status,created_at,last_login")
-        .order("created_at", { ascending: false }).limit(500);
-      if (error) throw error;
-      data.sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1));
-      return reply({ ok: true, users: data });
-    }
-
-    if (body.action === "set_status" || body.action === "set_role") {
-      const id = Number(body.id);
-      if (!Number.isFinite(id) || id === me.telegram_id) return reply({ ok: false, error: "bad_target" }, 400);
-      const { data: target } = await db.from("profiles").select("telegram_id,role").eq("telegram_id", id).single();
-      if (!target) return reply({ ok: false, error: "not_found" }, 404);
-      // нельзя менять тех, кто равен вам или выше
-      if (rank < 3 || (RANK[target.role] ?? 0) >= rank) return forbidden();
-
-      if (body.action === "set_status") {
-        if (!STATUSES.includes(body.status)) return reply({ ok: false, error: "bad_status" }, 400);
-        const { error } = await db.from("profiles").update({ status: body.status }).eq("telegram_id", id);
-        if (error) throw error;
-      } else {
-        if (rank < 4) return forbidden(); // роли назначает только руководитель
-        if (!RANK[body.role]) return reply({ ok: false, error: "bad_role" }, 400);
-        const { error } = await db.from("profiles").update({ role: body.role }).eq("telegram_id", id);
-        if (error) throw error;
-      }
-      if (body.action === "set_status") {
-        if (body.status === "approved") notifyUsers([id], "✅ Ваша заявка на доступ к SCP NETWORK одобрена. Теперь вы можете оценивать и комментировать статьи.");
-        else if (body.status === "rejected") notifyUsers([id], "❌ Доступ к SCP NETWORK ограничен: ваша заявка отклонена.");
-      } else notifyUsers([id], `🔑 Ваша роль на SCP NETWORK изменена: ${ROLE_NAME[body.role] ?? body.role}.`);
-      return reply({ ok: true });
-    }
-
-    // ---------- статьи ----------
-    const names = async (ids: string[]) => {
-      const u = [...new Set(ids)].map(Number).filter(Number.isFinite);
-      if (!u.length) return {} as Record<string, string>;
-      const { data } = await db.from("profiles").select("telegram_id,username,first_name").in("telegram_id", u);
-      return Object.fromEntries((data ?? []).map((p: any) =>
-        [String(p.telegram_id), p.username ? "@" + p.username : (p.first_name ?? String(p.telegram_id))]));
-    };
-    const getArticle = async () => {
-      const id = String(body.id ?? "");
-      if (!UUID_RE.test(id)) return null;
-      const { data } = await db.from("articles").select("*").eq("id", id).maybeSingle();
-      return data;
-    };
-
-    if (body.action === "my_articles") {
-      if (rank < 2) return forbidden();
-      const { data, error } = await db.from("articles")
-        .select("id,scp_code,title,kind,status,slug,updated_at")
-        .eq("author_id", myId).order("updated_at", { ascending: false }).limit(200);
-      if (error) throw error;
-      const ids = data.map((a: any) => a.id);
-      const notes: Record<string, string> = {};
-      if (ids.length) {
-        const { data: rv } = await db.from("article_reviews").select("article_id,comment,decision,created_at")
-          .in("article_id", ids).eq("decision", "rejected").order("created_at", { ascending: false });
-        for (const r of rv ?? []) if (!(r.article_id in notes)) notes[r.article_id] = r.comment;
-      }
-      return reply({ ok: true, articles: data.map((a: any) => ({ ...a, note: notes[a.id] ?? "" })) });
-    }
-
-    if (body.action === "article_get") {
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      if (a.author_id !== myId && rank < 3) return forbidden();
-      const { data: reviews } = await db.from("article_reviews").select("stage,decision,comment,created_at")
-        .eq("article_id", a.id).order("created_at", { ascending: true });
-      const nm = await names([a.author_id]);
-      return reply({ ok: true, article: { ...a, author_name: nm[a.author_id] ?? a.author_id }, reviews: reviews ?? [] });
-    }
-
-    if (body.action === "article_save") {
-      if (rank < 2) return forbidden();
-      const kind = String(body.kind ?? "");
-      if (!KINDS.includes(kind)) return reply({ ok: false, error: "bad_kind" }, 400);
-      const title = String(body.title ?? "").trim().slice(0, 200);
-      const text = String(body.body ?? "").slice(0, 200000);
-      const f: Record<string, unknown> = { kind, title, body: text, scp_code: null, scp_num: null, series: null,
-        containment: null, secondary: null, disruption: null, risk: null };
-      if (kind === "object") {
-        const code = String(body.scp_code ?? "").trim().toUpperCase();
-        if (code) {
-          const m = CODE_RE.exec(code);
-          const n = m ? Number(m[1]) : 0;
-          if (!m || n < 1 || n > 5999) return reply({ ok: false, error: "bad_code" }, 400);
-          f.scp_code = code; f.scp_num = n; f.series = Math.floor(n / 1000) + 1;
-        }
-        for (const k of ["containment", "secondary", "disruption", "risk"] as const) {
-          const v = String(body[k] ?? "");
-          if (v && !ACS[k].includes(v)) return reply({ ok: false, error: "bad_acs" }, 400);
-          f[k] = v || null;
-        }
-      }
-      const origin = String(body.origin ?? "original");
-      if (!["original", "translation"].includes(origin)) return reply({ ok: false, error: "bad_origin" }, 400);
-      f.origin = origin;
-      f.credits = String(body.credits ?? "").trim().slice(0, 2000) || null;
-      if (origin === "translation") {
-        const url = String(body.orig_url ?? "").trim().slice(0, 500);
-        if (url && !/^https?:\/\/\S+$/.test(url)) return reply({ ok: false, error: "bad_url" }, 400);
-        f.orig_author = String(body.orig_author ?? "").trim().slice(0, 200) || null;
-        f.orig_title = String(body.orig_title ?? "").trim().slice(0, 200) || null;
-        f.orig_url = url || null;
-      } else {
-        f.orig_author = null; f.orig_title = null; f.orig_url = null;
-      }
-      if (body.id) {
-        const a = await getArticle();
-        if (!a) return reply({ ok: false, error: "not_found" }, 404);
-        if (a.status === "published") {
-          if (rank < 4) return forbidden(); // править опубликованное может только руководитель
-          const { error: pErr } = await db.from("articles").update(f).eq("id", a.id);
-          if (pErr) throw pErr;
-          return reply({ ok: true, id: a.id });
-        }
-        if (a.author_id !== myId) return forbidden();
-        if (!EDITABLE.includes(a.status)) return reply({ ok: false, error: "locked" }, 409);
-        const { error } = await db.from("articles").update({ ...f, status: "draft" }).eq("id", a.id);
-        if (error) throw error;
-        return reply({ ok: true, id: a.id });
-      }
-      const { data, error } = await db.from("articles")
-        .insert({ ...f, author_id: myId, status: "draft" }).select("id").single();
-      if (error) throw error;
-      return reply({ ok: true, id: data.id });
-    }
-
-    if (body.action === "article_submit") {
-      if (rank < 2) return forbidden();
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      if (a.author_id !== myId) return forbidden();
-      if (a.status !== "draft") return reply({ ok: false, error: "locked" }, 409);
-      if (!a.title.trim() || !a.body.trim()) return reply({ ok: false, error: "empty" }, 400);
-      if (a.kind === "object" && (!a.scp_code || !a.containment)) return reply({ ok: false, error: "empty_object" }, 400);
-      if (a.origin === "translation" && (!a.orig_author || !a.orig_url)) return reply({ ok: false, error: "empty_origin" }, 400);
-      const { error } = await db.from("articles").update({ status: "submitted" }).eq("id", a.id).eq("status", "draft");
-      if (error) throw error;
-      notifyStaff(3, `📝 Новая статья на проверку: <b>${H(nm(a))}</b>\nАвтор: ${H(who(me))}\n${A("/#review", "Открыть очередь проверки")}`, myId);
-      return reply({ ok: true });
-    }
-
-    if (body.action === "queue") {
-      const lead = body.stage === "lead";
-      if (rank < (lead ? 4 : 3)) return forbidden();
-      const { data, error } = await db.from("articles")
-        .select("id,scp_code,title,kind,author_id,updated_at")
-        .eq("status", lead ? "admin_approved" : "submitted").order("updated_at", { ascending: true }).limit(200);
-      if (error) throw error;
-      const nm = await names(data.map((a: any) => a.author_id));
-      return reply({ ok: true, articles: data.map((a: any) => ({ ...a, author_name: nm[a.author_id] ?? a.author_id })) });
-    }
-
-    if (body.action === "review") {
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      const decision = body.decision;
-      const comment = String(body.comment ?? "").trim().slice(0, 2000);
-      if (!["approved", "rejected"].includes(decision)) return reply({ ok: false, error: "bad_decision" }, 400);
-      if (decision === "rejected" && !comment) return reply({ ok: false, error: "comment_required" }, 400);
-      let stage: string, next: string;
-      if (a.status === "submitted") {
-        if (rank < 3) return forbidden();
-        if (a.author_id === myId && rank < 4) return forbidden(); // свою статью проверять нельзя
-        stage = "admin";
-        next = decision === "approved" ? "admin_approved" : "admin_rejected";
-      } else if (a.status === "admin_approved") {
-        if (rank < 4) return forbidden();
-        if (decision !== "rejected") return reply({ ok: false, error: "use_publish" }, 400);
-        stage = "lead";
-        next = "lead_rejected";
-      } else return reply({ ok: false, error: "wrong_state" }, 409);
-      const { error: uErr, count } = await db.from("articles")
-        .update({ status: next }, { count: "exact" }).eq("id", a.id).eq("status", a.status);
-      if (uErr) throw uErr;
-      if (!count) return reply({ ok: false, error: "wrong_state" }, 409);
-      const { error: rErr } = await db.from("article_reviews")
-        .insert({ article_id: a.id, reviewer_id: myId, stage, decision, comment });
-      if (rErr) throw rErr;
-      if (next === "admin_approved") {
-        notifyStaff(4, `✅ Статья одобрена администратором и ждёт публикации: <b>${H(nm(a))}</b>\n${A("/#publish", "Открыть очередь публикации")}`, myId);
-        if (a.author_id !== myId) notifyUsers([a.author_id], `✅ Ваша статья «${H(nm(a))}» одобрена администратором и передана руководителю на публикацию.`);
-      } else if (a.author_id !== myId) {
-        notifyUsers([a.author_id], `❌ Статья «${H(nm(a))}» отклонена ${stage === "lead" ? "руководителем" : "администратором"}.\nКомментарий: ${H(comment)}\n${A("/#polygon", "Открыть Полигон")}`);
-      }
-      return reply({ ok: true, status: next });
-    }
-
-    if (body.action === "publish") {
-      if (rank < 4) return forbidden();
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      if (a.status !== "admin_approved") return reply({ ok: false, error: "wrong_state" }, 409);
-      const typed = String(body.slug ?? "").trim().toLowerCase()
-        .replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "").replace(/^\/+|\/+$/g, "");
-      const slug = typed || slugify(a.scp_code || a.title);
-      if (!SLUG_RE.test(slug)) return reply({ ok: false, error: "bad_slug" }, 400);
-      const { error, count } = await db.from("articles").update(
-        { status: "published", slug, published_by: myId, published_at: new Date().toISOString() },
-        { count: "exact" },
-      ).eq("id", a.id).eq("status", "admin_approved");
-      if (error) {
-        if (error.code === "23505") return reply({ ok: false, error: "slug_taken" }, 409);
-        if (error.code === "23514") return reply({ ok: false, error: "bad_slug" }, 400);
-        throw error;
-      }
-      if (!count) return reply({ ok: false, error: "wrong_state" }, 409);
-      await db.from("article_reviews").insert(
-        { article_id: a.id, reviewer_id: myId, stage: "lead", decision: "approved", comment: "" },
-      );
-      if (a.author_id !== myId) notifyUsers([a.author_id], `🎉 Ваша статья опубликована: ${A("/" + slug, nm(a))}`);
-      return reply({ ok: true, slug });
-    }
-
-    if (body.action === "rate") {
-      if (rank < 1) return forbidden();
-      const art = await pubArticle(body.article_id);
-      if (!art) return reply({ ok: false, error: "not_found" }, 404);
-      if (art.author_id === myId) return reply({ ok: false, error: "own_article" }, 403);
-      const n = Number(body.stars);
-      if (n === 0) {
-        const { error } = await db.from("article_ratings").delete().eq("article_id", art.id).eq("user_id", myId);
-        if (error) throw error;
-      } else if (Number.isInteger(n) && n >= 1 && n <= 5) {
-        const { error } = await db.from("article_ratings").upsert(
-          { article_id: art.id, user_id: myId, stars: n, updated_at: new Date().toISOString() },
-          { onConflict: "article_id,user_id" });
-        if (error) throw error;
-      } else return reply({ ok: false, error: "bad_stars" }, 400);
-      return reply({ ok: true });
-    }
-
-    if (body.action === "comment_add") {
-      if (rank < 1) return forbidden();
-      const art = await pubArticle(body.article_id);
-      if (!art) return reply({ ok: false, error: "not_found" }, 404);
-      const text = String(body.body ?? "").trim();
-      if (!text || text.length > 2000) return reply({ ok: false, error: "bad_body" }, 400);
-      let parent: string | null = null;
-      let parentAuthor: string | null = null;
-      if (body.parent_id) {
-        const pid = String(body.parent_id);
-        const { data: pc } = UUID_RE.test(pid)
-          ? await db.from("article_comments").select("id,article_id,deleted,author_id").eq("id", pid).maybeSingle()
-          : { data: null };
-        if (!pc || pc.article_id !== art.id || pc.deleted) return reply({ ok: false, error: "bad_parent" }, 400);
-        parent = pid;
-        parentAuthor = pc.author_id;
-      }
-      const since = new Date(Date.now() - 60000).toISOString();
-      const { count } = await db.from("article_comments").select("*", { count: "exact", head: true })
-        .eq("author_id", myId).gte("created_at", since);
-      if ((count ?? 0) >= 5) return reply({ ok: false, error: "too_fast" }, 429);
-      const { error } = await db.from("article_comments")
-        .insert({ article_id: art.id, parent_id: parent, author_id: myId, body: text });
-      if (error) throw error;
-      const snip = text.length > 200 ? text.slice(0, 200) + "…" : text;
-      const link = A("/" + art.slug, nm(art));
-      if (parentAuthor && parentAuthor !== myId) notifyUsers([parentAuthor], `💬 ${H(who(me))} ответил(а) на ваш комментарий к «${link}»:\n${H(snip)}`);
-      if (art.author_id !== myId && art.author_id !== parentAuthor) notifyUsers([art.author_id], `💬 Новый комментарий к вашей статье «${link}» от ${H(who(me))}:\n${H(snip)}`);
-      return reply({ ok: true });
-    }
-
-    if (body.action === "comment_edit" || body.action === "comment_delete") {
-      const cid = String(body.id ?? "");
-      const { data: c } = UUID_RE.test(cid)
-        ? await db.from("article_comments").select("id,author_id,deleted").eq("id", cid).maybeSingle()
-        : { data: null };
-      if (!c || c.deleted) return reply({ ok: false, error: "not_found" }, 404);
-      if (body.action === "comment_edit") {
-        if (rank < 1 || c.author_id !== myId) return forbidden();
-        const text = String(body.body ?? "").trim();
-        if (!text || text.length > 2000) return reply({ ok: false, error: "bad_body" }, 400);
-        const { error } = await db.from("article_comments")
-          .update({ body: text, edited_at: new Date().toISOString() }).eq("id", c.id);
-        if (error) throw error;
-      } else {
-        if (!(rank >= 3 || (rank >= 1 && c.author_id === myId))) return forbidden();
-        const { error } = await db.from("article_comments").update({ deleted: true, body: "" }).eq("id", c.id);
-        if (error) throw error;
-      }
-      return reply({ ok: true });
-    }
-
-    if (body.action === "get_notify") {
-      const { data: pr } = await db.from("profiles").select("notify,handle").eq("telegram_id", me.telegram_id).maybeSingle();
-      let bot: string | null = null;
-      try {
-        const r = await fetch(`https://api.telegram.org/bot${tgToken}/getMe`);
-        bot = (await r.json())?.result?.username ?? null;
-      } catch { /* не критично */ }
-      return reply({ ok: true, notify: pr?.notify !== false, bot, staff: rank >= 3, handle: pr?.handle ?? null });
-    }
-
-    if (body.action === "set_notify") {
-      const { error } = await db.from("profiles").update({ notify: !!body.on }).eq("telegram_id", me.telegram_id);
-      if (error) throw error;
-      return reply({ ok: true });
-    }
-
-    if (body.action === "notify_test") {
-      const r = await tgSend(me.telegram_id, "🔔 Тест: уведомления SCP NETWORK работают.");
-      return r.ok ? reply({ ok: true }) : reply({ ok: false, error: "tg_failed", description: r.description });
-    }
-
-    if (body.action === "comment_report") {
-      if (rank < 1) return forbidden();
-      const cid = String(body.id ?? "");
-      const { data: c } = UUID_RE.test(cid)
-        ? await db.from("article_comments").select("id,author_id,deleted,body").eq("id", cid).maybeSingle()
-        : { data: null };
-      if (!c || c.deleted) return reply({ ok: false, error: "not_found" }, 404);
-      if (c.author_id === myId) return reply({ ok: false, error: "own_comment" }, 400);
-      const since = new Date(Date.now() - 3600000).toISOString();
-      const { count } = await db.from("comment_reports").select("*", { count: "exact", head: true })
-        .eq("reporter_id", myId).gte("created_at", since);
-      if ((count ?? 0) >= 10) return reply({ ok: false, error: "too_fast" }, 429);
-      const reason = String(body.reason ?? "").trim().slice(0, 300);
-      const { error } = await db.from("comment_reports").insert({ comment_id: c.id, reporter_id: myId, reason });
-      if (error) {
-        if (error.code === "23505") return reply({ ok: false, error: "already_reported" }, 409);
-        throw error;
-      }
-      notifyStaff(3, `🚩 Жалоба на комментарий: «${H(String(c.body).slice(0, 150))}»\n${A("/#moderation", "Открыть модерацию")}`, myId);
-      return reply({ ok: true });
-    }
-
-    if (body.action === "mod_reports" || body.action === "mod_recent") {
-      if (rank < 3) return forbidden();
-      const reasons: Record<string, string[]> = {};
-      const cnt: Record<string, number> = {};
-      let cq: any;
-      if (body.action === "mod_reports") {
-        const { data: rp, error } = await db.from("comment_reports").select("comment_id,reason")
-          .eq("status", "open").order("created_at", { ascending: false }).limit(500);
-        if (error) throw error;
-        for (const r of rp ?? []) {
-          cnt[r.comment_id] = (cnt[r.comment_id] ?? 0) + 1;
-          if (r.reason) (reasons[r.comment_id] ??= []).push(r.reason);
-        }
-        const cids = Object.keys(cnt);
-        if (!cids.length) return reply({ ok: true, items: [] });
-        cq = await db.from("article_comments").select("id,article_id,author_id,body,deleted,created_at").in("id", cids);
-      } else {
-        cq = await db.from("article_comments").select("id,article_id,author_id,body,deleted,created_at")
-          .eq("deleted", false).order("created_at", { ascending: false }).limit(100);
-      }
-      if (cq.error) throw cq.error;
-      const cms = (cq.data ?? []).filter((c: any) => !c.deleted);
-      const aids = [...new Set(cms.map((c: any) => c.article_id))];
-      const { data: ars } = aids.length ? await db.from("articles").select("id,slug,scp_code,title").in("id", aids) : { data: [] };
-      const am: Record<string, any> = Object.fromEntries((ars ?? []).map((x: any) => [x.id, x]));
-      const uids = [...new Set(cms.map((c: any) => Number(c.author_id)))].filter(Number.isFinite);
-      const { data: ps } = uids.length
-        ? await db.from("profiles").select("telegram_id,username,first_name,role,status").in("telegram_id", uids)
-        : { data: [] };
-      const pm: Record<string, any> = Object.fromEntries((ps ?? []).map((p: any) => [String(p.telegram_id), p]));
-      const items = cms.map((c: any) => {
-        const p = pm[c.author_id], ar = am[c.article_id];
-        return {
-          id: c.id, body: c.body, created_at: c.created_at, count: cnt[c.id] ?? 0, reasons: (reasons[c.id] ?? []).slice(0, 3),
-          article_slug: ar?.slug ?? null, article_name: ar ? nm(ar) : "статья удалена",
-          author_id: c.author_id, author_name: p ? who(p) : "пользователь",
-          author_role: p?.role ?? "reader", author_status: p?.status ?? "approved",
-        };
-      });
-      if (body.action === "mod_reports") items.sort((x: any, y: any) => y.count - x.count);
-      return reply({ ok: true, items });
-    }
-
-    if (body.action === "mod_resolve") {
-      if (rank < 3) return forbidden();
-      const cid = String(body.comment_id ?? "");
-      const { data: c } = UUID_RE.test(cid)
-        ? await db.from("article_comments").select("id,article_id,author_id,deleted").eq("id", cid).maybeSingle()
-        : { data: null };
-      if (!c) return reply({ ok: false, error: "not_found" }, 404);
-      const del = body.act === "delete";
-      if (del && !c.deleted) {
-        const { error } = await db.from("article_comments").update({ deleted: true, body: "" }).eq("id", c.id);
-        if (error) throw error;
-        if (c.author_id !== myId) {
-          const { data: ar } = await db.from("articles").select("scp_code,title").eq("id", c.article_id).maybeSingle();
-          notifyUsers([c.author_id], `🗑 Ваш комментарий${ar ? ` к «${H(nm(ar))}»` : ""} удалён модератором.`);
-        }
-      }
-      const { error: e2 } = await db.from("comment_reports")
-        .update({ status: del ? "resolved" : "dismissed", resolved_by: myId, resolved_at: new Date().toISOString() })
-        .eq("comment_id", c.id).eq("status", "open");
-      if (e2) throw e2;
-      return reply({ ok: true });
-    }
-
-    if (body.action === "profile_update") {
-      if (rank < 1) return forbidden();
-      const bio = String(body.bio ?? "").replace(/\s+/g, " ").trim().slice(0, 150);
-      const { error } = await db.from("profiles")
-        .update({ bio, show_comments: body.show_comments !== false, show_ratings: body.show_ratings !== false })
-        .eq("telegram_id", me.telegram_id);
-      if (error) throw error;
-      return reply({ ok: true });
-    }
-
-    if (body.action === "manage_list") {
-      if (rank < 4) return forbidden();
-      const { data, error } = await db.from("articles")
-        .select("id,scp_code,title,kind,slug,author_id,published_at")
-        .eq("status", "published").order("published_at", { ascending: false }).limit(500);
-      if (error) throw error;
-      const nm = await names(data.map((x: any) => x.author_id));
-      return reply({ ok: true, articles: data.map((x: any) => ({ ...x, author_name: nm[x.author_id] ?? x.author_id })) });
-    }
-
-    if (body.action === "unpublish") {
-      if (rank < 4) return forbidden();
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      if (a.status !== "published") return reply({ ok: false, error: "wrong_state" }, 409);
-      // возвращаем автору в черновики, ссылка освобождается
-      const { error } = await db.from("articles")
-        .update({ status: "draft", slug: null, published_at: null, published_by: null })
-        .eq("id", a.id).eq("status", "published");
-      if (error) throw error;
-      if (a.author_id !== myId) notifyUsers([a.author_id], `↩️ Статья «${H(nm(a))}» снята с публикации и возвращена в черновики.\n${A("/#polygon", "Открыть Полигон")}`);
-      return reply({ ok: true });
-    }
-
-    if (body.action === "article_delete") {
-      const a = await getArticle();
-      if (!a) return reply({ ok: false, error: "not_found" }, 404);
-      const own = rank >= 2 && a.author_id === myId && EDITABLE.includes(a.status);
-      if (rank < 4 && !own) return forbidden();
-      const { error } = await db.from("articles").delete().eq("id", a.id);
-      if (error) throw error;
-      return reply({ ok: true });
-    }
-
-    return reply({ ok: false, error: "unknown_action" }, 400);
-  } catch (e) {
-    console.error(e);
-    return reply({ ok: false, error: "server", ...(dbg ? { detail: String((e as any)?.message ?? e).slice(0, 240) } : {}) }, 500);
+/* Уведомления в Telegram (кабинет) */
+var _rc=renderCabinet;
+renderCabinet=function(){_rc();cabNotify()};
+async function cabNotify(){
+  if(!acted())return;var g=document.querySelector('#cab .cab-grid');if(!g)return;
+  g.insertAdjacentHTML('afterbegin','<div class="box" id="nt-box"><h2>Уведомления в Telegram</h2><div class="in" id="nt-in">Загрузка…</div></div>');
+  var d=await api('get_notify');if(!document.getElementById('nt-in'))return;
+  if(!d.ok){document.getElementById('nt-in').textContent='Не удалось загрузить настройки';return}
+  window.NT=d;drawNotify('');
+  if(d.handle)document.getElementById('nt-box').insertAdjacentHTML('beforebegin','<div class="box"><h2>Мой профиль</h2><div class="in"><p><a href="/u/'+esc(d.handle)+'" data-user="'+esc(d.handle)+'">Открыть мой профиль</a></p></div></div>');
+}
+function drawNotify(msg){
+  var d=window.NT,el=document.getElementById('nt-in');if(!el)return;
+  el.innerHTML='<p>Бот пишет вам в Telegram: о решениях по вашим статьям и заявке, о комментариях к вашим статьям и ответах на ваши комментарии'+(d.staff?', а также о новых заявках и статьях на проверку':'')+'.</p><p>Сейчас: <b>'+(d.notify?'включены':'выключены')+'</b></p><button class="mini" data-nt="toggle">'+(d.notify?'Выключить':'Включить')+'</button> <button class="mini" data-nt="test">Отправить тест</button><p id="nt-msg">'+msg+'</p>';
+}
+document.addEventListener('click',async function(e){
+  var b=e.target.closest('[data-nt]');if(!b)return;e.preventDefault();
+  if(b.dataset.nt==='toggle'){
+    var d=await api('set_notify',{on:!window.NT.notify});
+    if(d.ok){window.NT.notify=!window.NT.notify;drawNotify('')}else drawNotify('Ошибка: '+esc(errText(d)));
+  }else{
+    var t=await api('notify_test');
+    drawNotify(t.ok?'Тестовое сообщение отправлено, проверьте Telegram.':'Не удалось отправить. Откройте чат с ботом'+(window.NT.bot?' @'+esc(window.NT.bot):'')+' в Telegram, нажмите Start и повторите.');
   }
 });
+
+/* Модерация */
+async function modView(tab){
+  window.MODTAB=tab||'reports';var b=G();b.textContent='Загрузка…';
+  var d=await api(window.MODTAB==='reports'?'mod_reports':'mod_recent');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  var ON=' style="background:#e8e8e8;color:#000"',myr=RANK[window.CUR.user.role]||0;
+  var h='<p><button class="mini" data-mod="tab" data-tab="reports"'+(window.MODTAB==='reports'?ON:'')+'>Жалобы</button> <button class="mini" data-mod="tab" data-tab="recent"'+(window.MODTAB==='recent'?ON:'')+'>Последние комментарии</button></p>';
+  if(!d.items.length)h+='<p>'+(window.MODTAB==='reports'?'Открытых жалоб нет.':'Комментариев пока нет.')+'</p>';
+  d.items.forEach(function(c){
+    h+='<div class="note"><div>'+(c.count?'<b>Жалоб: '+c.count+'</b> · ':'')+(c.article_slug?'<a href="/'+esc(c.article_slug)+'" data-slug="'+esc(c.article_slug)+'">'+esc(c.article_name)+'</a>':esc(c.article_name))+'</div>'
+     +'<div class="cm-h"><b>'+esc(c.author_name)+'</b> <span class="role">'+(ROLE_C[c.author_role]||'')+'</span> <span class="dt">'+dstr(c.created_at)+'</span></div>'
+     +'<div class="cm-b">'+inl(esc(c.body)).replace(/\n/g,'<br>')+'</div>';
+    if(c.reasons.length)h+='<div class="cm-q">Причины: '+c.reasons.map(esc).join('; ')+'</div>';
+    h+='<div class="cm-a"><a href="#" data-mod="del" data-id="'+c.id+'">Удалить комментарий</a>'+(c.count?' <a href="#" data-mod="dismiss" data-id="'+c.id+'">Отклонить жалобу</a>':'')
+     +(c.author_status==='approved'&&(RANK[c.author_role]||0)<myr?' <a href="#" data-mod="block" data-uid="'+c.author_id+'" data-name="'+esc(c.author_name)+'">Заблокировать автора</a>':'')+'</div></div>';
+  });
+  b.innerHTML=h;
+}
+document.addEventListener('click',async function(e){
+  var m=e.target.closest('[data-mod]');if(!m)return;e.preventDefault();var k=m.dataset.mod,d;
+  if(k==='tab'){modView(m.dataset.tab);return}
+  if(k==='del'){if(!confirm('Удалить комментарий? Автор получит уведомление.'))return;d=await api('mod_resolve',{comment_id:m.dataset.id,act:'delete'})}
+  else if(k==='dismiss')d=await api('mod_resolve',{comment_id:m.dataset.id,act:'dismiss'});
+  else if(k==='block'){if(!confirm('Заблокировать '+m.dataset.name+'? Он не сможет комментировать и оценивать.'))return;d=await api('set_status',{id:m.dataset.uid,status:'rejected'})}
+  if(d&&!d.ok)alert('Ошибка: '+errText(d));
+  modView(window.MODTAB);
+});
+
+/* Профили */
+function uLink(n,h,b){var t=b?'<b>'+esc(n)+'</b>':esc(n);return h?'<a href="/u/'+esc(h)+'" data-user="'+esc(h)+'">'+t+'</a>':t}
+function stars5(n){return '★★★★★'.slice(0,n)+'☆☆☆☆☆'.slice(0,5-n)}
+function pfSec(title,body,open){return'<details class="coll"'+(open?' open':'')+'><summary><span class="s-show">'+title+'</span><span class="s-hide">'+title+'</span></summary><div class="coll-in">'+body+'</div></details>'}
+async function openProfile(h){
+  show('profile');mark(null);setNav(false);
+  var T=document.getElementById('p-title'),B=document.getElementById('p-body');
+  T.textContent='Профиль';B.textContent='Загрузка…';
+  var d=await api('profile',{handle:h});
+  if(!d.ok){T.textContent='Профиль не найден';B.innerHTML='<button class="mini" data-page="home">На главную</button>';return}
+  window.PROF=d;var p=d.profile,st=d.stats,myr=window.CUR&&window.CUR.user&&window.CUR.user.status==='approved'?(RANK[window.CUR.user.role]||0):0;
+  T.textContent=p.name;document.title=p.name+' — SCP Foundation';
+  var ava='<div class="pf-ava">'+(/^https:\/\//.test(p.photo_url||'')?'<img src="'+esc(p.photo_url)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'')+'<span>'+esc((p.name.replace(/^@/,'')[0]||'?').toUpperCase())+'</span></div>';
+  var badge=p.status==='rejected'?' <span class="blk">заблокирован</span>':p.status==='pending'?' <span class="blk">заявка не одобрена</span>':'';
+  var h2='<div class="pf-head">'+ava+'<div><div class="pf-nick"><b>'+esc(p.name)+'</b> <span class="role">'+(ROLE_C[p.role]||'')+'</span>'+badge+'</div><div class="pf-dt">На сайте с '+(p.created_at||'').slice(0,10)+'</div><div class="pf-bio">'+(p.bio?esc(p.bio):'<span class="cm-hint">Описание не заполнено</span>')+'</div>'+(p.is_me?'<p><a href="#" data-pf="edit">Изменить профиль</a></p>':'')+'</div></div><div id="pf-edit"></div>';
+  var showArt=d.articles.length>0||['author','admin','lead'].indexOf(p.role)>=0;
+  var S=[];if(showArt){S.push('Статей: <b>'+st.articles+'</b>');S.push('Средний рейтинг статей: <b>'+(st.votes?st.avg.toFixed(1):'—')+'</b>')}
+  S.push('Комментариев: <b>'+st.comments+'</b>');S.push('Оценок поставлено: <b>'+st.ratings+'</b>');
+  h2+='<div class="pf-stats">'+S.map(function(x){return'<span>'+x+'</span>'}).join('')+'</div>';
+  if(p.target_id&&!p.is_me&&(RANK[p.role]||0)<myr)h2+='<p class="pf-bar"><button class="mini" data-pf="block" data-uid="'+p.target_id+'" data-act="'+(p.status==='approved'?'rejected':'approved')+'">'+(p.status==='approved'?'Заблокировать':'Вернуть доступ')+'</button></p>';
+  if(showArt)h2+=pfSec('Статьи ('+d.articles.length+')',d.articles.length?'<ul class="alist">'+d.articles.map(function(a){return'<li><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+esc(a.scp_code?a.scp_code+' — '+a.title:a.title)+'</a> <span class="dt">'+KIND_RU[a.kind]+(a.origin==='translation'?' · перевод':'')+' · '+(a.published_at||'').slice(0,10)+'</span></li>'}).join('')+'</ul>':'<p class="cm-hint">Пока нет публикаций.</p>',true);
+  var hid=p.privacy;
+  h2+=pfSec('Комментарии ('+(d.comments?d.comments.length:'скрыты')+')',d.comments===null?'<p class="cm-hint">Пользователь скрыл список комментариев.</p>':(hid&&!hid.show_comments?'<p class="cm-hint">Скрыто от других, видно только вам.</p>':'')+(d.comments.length?d.comments.map(function(c){return'<div class="note"><div><a href="/'+esc(c.article_slug)+'" data-slug="'+esc(c.article_slug)+'">'+esc(c.article_name)+'</a> <span class="dt">'+dstr(c.created_at)+'</span></div><div class="cm-b">'+esc(c.body)+'</div></div>'}).join(''):'<p class="cm-hint">Комментариев пока нет.</p>'));
+  h2+=pfSec('Оценки ('+(d.ratings?d.ratings.length:'скрыты')+')',d.ratings===null?'<p class="cm-hint">Пользователь скрыл список оценок.</p>':(hid&&!hid.show_ratings?'<p class="cm-hint">Скрыто от других, видно только вам.</p>':'')+(d.ratings.length?'<ul class="alist">'+d.ratings.map(function(r){return'<li><a href="/'+esc(r.article_slug)+'" data-slug="'+esc(r.article_slug)+'">'+esc(r.article_name)+'</a> <span class="stars"><span class="star on">'+stars5(r.stars)+'</span></span></li>'}).join('')+'</ul>':'<p class="cm-hint">Оценок пока нет.</p>'));
+  B.innerHTML=h2;
+}
+document.addEventListener('click',async function(e){
+  var u=e.target.closest('a[data-user]');
+  if(u){e.preventDefault();history.pushState(null,'','/u/'+u.dataset.user);openProfile(u.dataset.user);return}
+  var f=e.target.closest('[data-pf]');if(!f)return;e.preventDefault();var k=f.dataset.pf,P=window.PROF;
+  if(k==='edit'){
+    var pv=P.profile.privacy||{show_comments:true,show_ratings:true};
+    document.getElementById('pf-edit').innerHTML='<div class="fm"><label>Описание (до 150 символов)</label><textarea id="pf-bio-in" rows="3" maxlength="150">'+esc(P.profile.bio||'')+'</textarea>'
+     +'<label><input type="checkbox" id="pf-sc"'+(pv.show_comments?' checked':'')+'> Показывать мои комментарии в профиле</label>'
+     +'<label><input type="checkbox" id="pf-sr"'+(pv.show_ratings?' checked':'')+'> Показывать мои оценки в профиле</label>'
+     +'<button class="mini" data-pf="save">Сохранить</button> <button class="mini" data-pf="cancel">Отмена</button> <span class="cm-err" id="pf-err"></span></div>';
+  }else if(k==='cancel')document.getElementById('pf-edit').innerHTML='';
+  else if(k==='save'){
+    var d=await api('profile_update',{bio:V('pf-bio-in'),show_comments:document.getElementById('pf-sc').checked,show_ratings:document.getElementById('pf-sr').checked});
+    if(d.ok)openProfile(P.profile.handle);else document.getElementById('pf-err').textContent=errText(d);
+  }else if(k==='block'){
+    if(!confirm(f.dataset.act==='rejected'?'Заблокировать пользователя? Он не сможет комментировать и оценивать.':'Вернуть доступ пользователю?'))return;
+    var d2=await api('set_status',{id:f.dataset.uid,status:f.dataset.act});
+    if(!d2.ok)alert('Ошибка: '+errText(d2));
+    openProfile(P.profile.handle);
+  }
+});
+
+/* Ссылки на статьи и маршрутизация по адресу */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-art]');if(t){e.preventDefault();artAct(t.dataset.art,t.dataset.id);return}var a=e.target.closest('a[data-slug]');if(!a)return;
+  e.preventDefault();history.pushState(null,'','/'+a.dataset.slug);openArticle(a.dataset.slug);
+});
+function afterLogin(){
+  var rt=sessionStorage.getItem('return_to');sessionStorage.removeItem('return_to');
+  if(rt&&/^\/([^\/]|$)/.test(rt)){history.replaceState(null,'',rt);route()}
+}
+function route(){
+  var p=location.pathname.replace(/^\/+|\/+$/g,'').toLowerCase();
+  if(p===''||p==='main'||p==='index.html'){
+    var h=location.hash.slice(1);
+    if(h.indexOf('class-')===0)openClass(h.slice(6),document.querySelector('[data-class="'+h.slice(6)+'"]'),1);
+    else if(h&&PAGES[h])openPage(h,1);else openPage('home',1);
+  }else if(p.indexOf('u/')===0)openProfile(p.slice(2));else openArticle(p);
+}
+(function(){
+  var sp=sessionStorage.getItem('spa_path');
+  if(sp){sessionStorage.removeItem('spa_path');if(/^\/([^\/]|$)/.test(sp))history.replaceState(null,'',sp)}
+  route();window.onpopstate=route;
+})();
+/* страховка: загрузчик не должен зависать */
+setTimeout(function(){var l=document.getElementById('loader');if(l&&l.style.display!=='none'){l.classList.add('out');l.style.display='none';document.getElementById('site').classList.add('visible')}},4000);
+</script>
+</body>
+</html>
