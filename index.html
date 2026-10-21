@@ -300,7 +300,7 @@ function openPage(id,np){
     document.getElementById('g-body').innerHTML=p.b;
     show('generic');
     if(id==='users')renderUsers();
-    if(id==='polygon')polyList();if(id==='review')queueView('admin');if(id==='publish')queueView('lead');if(id==='manage')manageList();if(id==='stories')listView('story');if(id==='hubs')listView('hub');
+    if(id==='polygon')polyList();if(id==='review')queueView('admin');if(id==='publish')queueView('lead');if(id==='manage')manageList();if(id==='moderation')modView('reports');if(id==='stories')listView('story');if(id==='hubs')listView('hub');
   }
   mark(document.querySelector('#nav .nav-item[data-page="'+id+'"]'));
   setNav(false);
@@ -460,7 +460,7 @@ var LEG=[['#888','Не назначен, нейтрализован или об�
 function dotColor(a){var s=a.secondary;if(s==='thaumiel')return'#9b59b6';if(s&&s!=='uncontained')return'#4a90e2';return{safe:'#3cb043',euclid:'#f0c020',keter:'#e03c31',esoteric:'#4a90e2'}[a.containment]||'#888'}
 function objName(a){return a.kind==='object'&&a.scp_code?esc(a.scp_code)+(a.title?' — '+esc(a.title):''):esc(a.title)}
 function kindLabel(a){return a.kind==='object'?'Объект'+(a.scp_code?' '+esc(a.scp_code):''):KIND_RU[a.kind]}
-function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={too_fast:'слишком часто, подождите минуту',bad_body:'комментарий должен быть от 1 до 2000 символов',own_article:'свою статью оценивать нельзя',bad_parent:'комментарий, на который вы отвечаете, недоступен',bad_url:'ссылка на оригинал должна начинаться с http:// или https://',empty_origin:'для перевода укажите автора оригинала и ссылку на него',bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
+function errText(d){if(d.error==='server'&&d.detail)return 'server — '+d.detail;var E={already_reported:'вы уже жаловались на этот комментарий',own_comment:'на свой комментарий пожаловаться нельзя',too_fast:'слишком часто, подождите минуту',bad_body:'комментарий должен быть от 1 до 2000 символов',own_article:'свою статью оценивать нельзя',bad_parent:'комментарий, на который вы отвечаете, недоступен',bad_url:'ссылка на оригинал должна начинаться с http:// или https://',empty_origin:'для перевода укажите автора оригинала и ссылку на него',bad_acs:'проверьте значения классов ACS',bad_code:'номер должен выглядеть как SCP-173 или SCP-232-NR',empty:'заполните название и текст',empty_object:'для объекта укажите номер, название, класс содержания и текст',comment_required:'для отклонения нужен комментарий',slug_taken:'такая ссылка уже занята',bad_slug:'недопустимая ссылка (a–z, 0–9, дефис; часть имён зарезервирована)',wrong_state:'статус статьи уже изменился',locked:'статью сейчас нельзя редактировать'};return (E[d.error]||d.error||'')+(d.detail?' ['+d.detail+']':'')}
 function acsBlock(a){var r=[['Класс содержания',ACS.cont[a.containment]],['Вторичный класс',ACS.sec[a.secondary]],['Класс нарушения',ACS.dis[a.disruption]],['Класс риска',ACS.risk[a.risk]]].filter(function(x){return x[1]});return r.length?'<table class="tbl">'+r.map(function(x){return'<tr><th>'+x[0]+'</th><td>'+x[1]+'</td></tr>'}).join('')+'</table>':''}
 function inl(t){return t.split(/(`[^`]+`)/).map(function(p,i){
   if(i%2)return'<code>'+p.slice(1,-1)+'</code>';
@@ -756,7 +756,7 @@ function cmTree(pid,dep){
       if(p&&!p.deleted)h+='<div class="cm-q">В ответ на '+esc(p.author_name)+': '+esc(p.body.slice(0,80))+(p.body.length>80?'…':'')+'</div>';
       h+='<div class="cm-b">'+inl(esc(c.body)).replace(/\n/g,'<br>')+'</div><div class="cm-a">'
        +(acted()?'<a href="#" data-cm="reply" data-id="'+c.id+'">Ответить</a> ':'')+(c.mine?'<a href="#" data-cm="edit" data-id="'+c.id+'">Изменить</a> ':'')
-       +(c.mine||isMod()?'<a href="#" data-cm="del" data-id="'+c.id+'">Удалить</a>':'')+'</div>';
+       +(c.mine||isMod()?'<a href="#" data-cm="del" data-id="'+c.id+'">Удалить</a> ':'')+(acted()&&!c.mine?'<a href="#" data-cm="report" data-id="'+c.id+'">Пожаловаться</a>':'')+'</div>';
     }
     if(nk)h+='<div class="cm-a"><a href="#" data-cm="fold" data-id="'+c.id+'">▾ '+nk+' '+plural(nk,'ответ','ответа','ответов')+'</a></div>';
     return h+'<div class="cm-kids'+(dep>=4?' flat':'')+'" id="k-'+c.id+'">'+cmTree(c.id,dep+1)+'</div></div>';
@@ -799,6 +799,7 @@ document.addEventListener('click',async function(e){
     b.insertAdjacentHTML('afterend',cmForm(null,id,cm.body));
   }
   else if(k==='del'){if(confirm('Удалить комментарий?')){var d2=await api('comment_delete',{id:id});if(!d2.ok)alert('Ошибка: '+errText(d2));loadComments()}}
+  else if(k==='report'){var why=prompt('Причина жалобы (можно оставить пустой):');if(why===null)return;var d3=await api('comment_report',{id:id,reason:why});alert(d3.ok?'Жалоба отправлена модераторам.':'Ошибка: '+errText(d3))}
   else if(k==='fold'){var kk=document.getElementById('k-'+id),hid=kk.style.display==='none';kk.style.display=hid?'':'none';c.textContent=c.textContent.replace(/^[▾▸]/,hid?'▾':'▸')}
 });
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.querySelector('.mback');if(m)m.remove()}});
@@ -826,6 +827,34 @@ document.addEventListener('click',async function(e){
     var t=await api('notify_test');
     drawNotify(t.ok?'Тестовое сообщение отправлено, проверьте Telegram.':'Не удалось отправить. Откройте чат с ботом'+(window.NT.bot?' @'+esc(window.NT.bot):'')+' в Telegram, нажмите Start и повторите.');
   }
+});
+
+/* Модерация */
+async function modView(tab){
+  window.MODTAB=tab||'reports';var b=G();b.textContent='Загрузка…';
+  var d=await api(window.MODTAB==='reports'?'mod_reports':'mod_recent');
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  var ON=' style="background:#e8e8e8;color:#000"',myr=RANK[window.CUR.user.role]||0;
+  var h='<p><button class="mini" data-mod="tab" data-tab="reports"'+(window.MODTAB==='reports'?ON:'')+'>Жалобы</button> <button class="mini" data-mod="tab" data-tab="recent"'+(window.MODTAB==='recent'?ON:'')+'>Последние комментарии</button></p>';
+  if(!d.items.length)h+='<p>'+(window.MODTAB==='reports'?'Открытых жалоб нет.':'Комментариев пока нет.')+'</p>';
+  d.items.forEach(function(c){
+    h+='<div class="note"><div>'+(c.count?'<b>Жалоб: '+c.count+'</b> · ':'')+(c.article_slug?'<a href="/'+esc(c.article_slug)+'" data-slug="'+esc(c.article_slug)+'">'+esc(c.article_name)+'</a>':esc(c.article_name))+'</div>'
+     +'<div class="cm-h"><b>'+esc(c.author_name)+'</b> <span class="role">'+(ROLE_C[c.author_role]||'')+'</span> <span class="dt">'+dstr(c.created_at)+'</span></div>'
+     +'<div class="cm-b">'+inl(esc(c.body)).replace(/\n/g,'<br>')+'</div>';
+    if(c.reasons.length)h+='<div class="cm-q">Причины: '+c.reasons.map(esc).join('; ')+'</div>';
+    h+='<div class="cm-a"><a href="#" data-mod="del" data-id="'+c.id+'">Удалить комментарий</a>'+(c.count?' <a href="#" data-mod="dismiss" data-id="'+c.id+'">Отклонить жалобу</a>':'')
+     +(c.author_status==='approved'&&(RANK[c.author_role]||0)<myr?' <a href="#" data-mod="block" data-uid="'+c.author_id+'" data-name="'+esc(c.author_name)+'">Заблокировать автора</a>':'')+'</div></div>';
+  });
+  b.innerHTML=h;
+}
+document.addEventListener('click',async function(e){
+  var m=e.target.closest('[data-mod]');if(!m)return;e.preventDefault();var k=m.dataset.mod,d;
+  if(k==='tab'){modView(m.dataset.tab);return}
+  if(k==='del'){if(!confirm('Удалить комментарий? Автор получит уведомление.'))return;d=await api('mod_resolve',{comment_id:m.dataset.id,act:'delete'})}
+  else if(k==='dismiss')d=await api('mod_resolve',{comment_id:m.dataset.id,act:'dismiss'});
+  else if(k==='block'){if(!confirm('Заблокировать '+m.dataset.name+'? Он не сможет комментировать и оценивать.'))return;d=await api('set_status',{id:m.dataset.uid,status:'rejected'})}
+  if(d&&!d.ok)alert('Ошибка: '+errText(d));
+  modView(window.MODTAB);
 });
 
 /* Ссылки на статьи и маршрутизация по адресу */
