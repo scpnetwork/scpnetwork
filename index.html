@@ -803,6 +803,31 @@ document.addEventListener('click',async function(e){
 });
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.querySelector('.mback');if(m)m.remove()}});
 
+/* Уведомления в Telegram (кабинет) */
+var _rc=renderCabinet;
+renderCabinet=function(){_rc();cabNotify()};
+async function cabNotify(){
+  if(!acted())return;var g=document.querySelector('#cab .cab-grid');if(!g)return;
+  g.insertAdjacentHTML('afterbegin','<div class="box" id="nt-box"><h2>Уведомления в Telegram</h2><div class="in" id="nt-in">Загрузка…</div></div>');
+  var d=await api('get_notify');if(!document.getElementById('nt-in'))return;
+  if(!d.ok){document.getElementById('nt-in').textContent='Не удалось загрузить настройки';return}
+  window.NT=d;drawNotify('');
+}
+function drawNotify(msg){
+  var d=window.NT,el=document.getElementById('nt-in');if(!el)return;
+  el.innerHTML='<p>Бот пишет вам в Telegram: о решениях по вашим статьям и заявке, о комментариях к вашим статьям и ответах на ваши комментарии'+(d.staff?', а также о новых заявках и статьях на проверку':'')+'.</p><p>Сейчас: <b>'+(d.notify?'включены':'выключены')+'</b></p><button class="mini" data-nt="toggle">'+(d.notify?'Выключить':'Включить')+'</button> <button class="mini" data-nt="test">Отправить тест</button><p id="nt-msg">'+msg+'</p>';
+}
+document.addEventListener('click',async function(e){
+  var b=e.target.closest('[data-nt]');if(!b)return;e.preventDefault();
+  if(b.dataset.nt==='toggle'){
+    var d=await api('set_notify',{on:!window.NT.notify});
+    if(d.ok){window.NT.notify=!window.NT.notify;drawNotify('')}else drawNotify('Ошибка: '+esc(errText(d)));
+  }else{
+    var t=await api('notify_test');
+    drawNotify(t.ok?'Тестовое сообщение отправлено, проверьте Telegram.':'Не удалось отправить. Откройте чат с ботом'+(window.NT.bot?' @'+esc(window.NT.bot):'')+' в Telegram, нажмите Start и повторите.');
+  }
+});
+
 /* Ссылки на статьи и маршрутизация по адресу */
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-art]');if(t){e.preventDefault();artAct(t.dataset.art,t.dataset.id);return}var a=e.target.closest('a[data-slug]');if(!a)return;
