@@ -132,7 +132,8 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .coll .s-hide{display:none}.coll[open] .s-show{display:none}.coll[open] .s-hide{display:inline}.coll-in{padding:6px 14px;border-top:1px solid #444}
 #e-prev{margin-top:14px}
 .afoot{border-top:1px solid #666;margin-top:28px;padding-top:10px;line-height:1.8}.adate{color:#bbb;margin-top:10px}.aopts{text-align:right;margin-top:12px}
-.rbox{float:right;margin:0 0 10px 18px;text-align:center;border:1px solid #666;background:#111;padding:6px 14px;line-height:1.5}.rbox a{color:#e8e8e8;text-decoration:none}
+#tab-article{position:relative}.rbox{position:absolute;right:0;top:6px;z-index:2;text-align:center;border:1px solid #666;background:#111;padding:4px 12px;line-height:1.5}.rbox[hidden]{display:none!important}#a-title{padding-right:230px}
+@media(max-width:700px){#a-title{padding-right:0}.rbox{position:static;display:block;margin:0 0 10px}}.rbox a{color:#e8e8e8;text-decoration:none}
 .star{cursor:pointer;color:#555;font-size:20px}.star.on{color:#f0c020}.star:hover{color:#fff}.afoot{clear:both}
 .mback{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50}
 .mwin{background:#000;border:1px solid #e8e8e8;padding:14px 20px;min-width:260px;max-width:90vw}.mh{display:flex;justify-content:space-between;align-items:center}
@@ -231,6 +232,7 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
       <div class="box"><h2>Заявки на рассмотрении</h2><div class="in" id="admin-applications"><p>Загрузка...</p></div></div>
     </section>
     <section class="tab" id="tab-article">
+      <div class="rbox" id="rbox" hidden></div>
       <h1 id="a-title"></h1>
       <div id="a-body"></div><div id="a-meta" hidden></div>
     </section>
@@ -516,12 +518,12 @@ async function listView(kind,cls,q){
 async function openArticle(slug){
   show('article');mark(null);setNav(false);
   var T=document.getElementById('a-title'),M=document.getElementById('a-meta'),B=document.getElementById('a-body');
-  T.textContent='Загрузка…';M.textContent='';B.textContent='';
+  T.textContent='Загрузка…';M.textContent='';B.textContent='';var RB=document.getElementById('rbox');RB.hidden=true;RB.innerHTML='';
   var d=await api('article',{slug:slug});
   if(!d.ok){T.textContent='Страница не найдена';M.textContent='404';B.innerHTML='<p>Такой статьи нет или она ещё не опубликована.</p><button class="mini" data-page="home">На главную</button>';return}
   var a=d.article;T.textContent=a.kind==='object'&&a.scp_code?a.scp_code+' — '+a.title:a.title;document.title=T.textContent+' — SCP Foundation';
   M.textContent=KIND_RU[a.kind]+' · '+(a.published_at||'').slice(0,10);
-  window.ART=a;B.innerHTML='<div class="rbox" id="rbox"></div><div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead())+cmShell();loadRating();loadComments();
+  window.ART=a;B.innerHTML='<div class="art">'+fmt(a.body)+'</div>'+artFoot(a,isLead())+cmShell();loadRating();loadComments();
 }
 
 /* Полигон */
@@ -730,7 +732,7 @@ async function loadRating(){
   var d=await api('rating',{article_id:A.id});el=document.getElementById('rbox');if(!d.ok||!el)return;
   window.RT=d;var st='';
   for(var i=1;i<=5;i++)st+='<span class="star'+(d.mine>=i?' on':'')+'" data-star="'+i+'">★</span>';
-  el.innerHTML='<div><a href="#" data-rt="dist">рейтинг: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b></a></div><div class="stars">'+st+(d.mine?' <span class="star" data-star="0" title="Убрать оценку">✕</span>':'')+'</div><small>'+d.count+' '+plural(d.count,'голос','голоса','голосов')+'</small>';
+  el.hidden=false;el.innerHTML='<div><a href="#" data-rt="dist">рейтинг: <b>'+(d.count?d.avg.toFixed(1):'—')+'</b></a> <small>· '+d.count+' '+plural(d.count,'голос','голоса','голосов')+'</small></div><div class="stars">'+st+(d.mine?' <span class="star" data-star="0" title="Убрать оценку">✕</span>':'')+'</div>';
 }
 function showDist(){
   var d=window.RT;if(!d)return;var mx=Math.max.apply(null,d.dist.concat(1));
