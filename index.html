@@ -146,6 +146,8 @@ h1{font-family:var(--head);font-weight:700;font-size:30px;letter-spacing:1px;lin
 .pf-head{display:flex;gap:16px;align-items:center;margin-bottom:12px}.pf-ava{position:relative;width:96px;height:96px;border:1px solid #666;background:#111;display:flex;align-items:center;justify-content:center;font-size:40px;color:#bbb;flex:none;overflow:hidden}
 .pf-ava img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#111}.pf-nick{font-size:20px}.pf-dt{color:#888;font-size:13px}.pf-bio{margin-top:6px}
 .pf-stats{display:flex;flex-wrap:wrap;gap:6px 22px;margin:12px 0;color:#bbb}.pf-stats b{color:#fff}.pf-bar{margin:8px 0}.blk{border:1px solid #e53935;color:#e53935;padding:0 6px;font-size:12px}
+.df{white-space:pre-wrap;word-break:break-word;border-left:3px solid transparent;padding:1px 8px;line-height:1.5}
+.df.add{background:#0d2b12;border-color:#4caf50}.df.del{background:#2b0d0d;border-color:#e53935}.df.gap{color:#666}
 .note{border:1px solid #888;padding:8px;margin:8px 0;color:#bbb}
 </style>
 </head>
@@ -555,7 +557,7 @@ async function manageList(){
   var d=await api('manage_list');
   if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
   b.innerHTML=d.articles.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>Статья</th><th>Тип</th><th>Автор</th><th>Дата</th><th></th></tr>'+d.articles.map(function(a){
-    return'<tr><td><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td>'+(a.published_at||'').slice(0,10)+'</td><td><button class="mini" data-do="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-do="unpub" data-id="'+a.id+'">Снять</button> <button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button></td></tr>'}).join('')+'</table></div>':'<p>Опубликованных статей пока нет.</p>';
+    return'<tr><td><a href="/'+esc(a.slug)+'" data-slug="'+esc(a.slug)+'">'+objName(a)+'</a></td><td>'+KIND_RU[a.kind]+'</td><td>'+esc(a.author_name)+'</td><td>'+(a.published_at||'').slice(0,10)+'</td><td><button class="mini" data-do="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-do="unpub" data-id="'+a.id+'">Снять</button> <button class="mini" data-do="del" data-id="'+a.id+'">Удалить</button> <button class="mini" data-do="hist" data-back="manage" data-id="'+a.id+'">История</button></td></tr>'}).join('')+'</table></div>':'<p>Опубликованных статей пока нет.</p>';
 }
 async function manageAct(o,id){
   var t=o==='unpub'?'Снять статью с публикации? Она вернётся автору в черновики, ссылка освободится.':'Удалить статью навсегда? Это нельзя отменить.';
@@ -564,9 +566,10 @@ async function manageAct(o,id){
   if(!d.ok){alert('Ошибка: '+errText(d));return false}
   return true;
 }
-function artBar(a){return'<p class="mdbar"><button class="mini" data-art="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-art="unpub" data-id="'+a.id+'">Снять с публикации</button> <button class="mini" data-art="del" data-id="'+a.id+'">Удалить</button></p>'}
+function artBar(a){return'<p class="mdbar"><button class="mini" data-art="edit" data-id="'+a.id+'">Править</button> <button class="mini" data-art="unpub" data-id="'+a.id+'">Снять с публикации</button> <button class="mini" data-art="del" data-id="'+a.id+'">Удалить</button> <button class="mini" data-art="hist" data-id="'+a.id+'">История версий</button></p>'}
 async function artAct(k,id){
   if(k==='edit'){window.LISTMODE='manage';show('generic');mark(null);setG('Редактирование статьи','Опубликованная статья');polyEdit(id);return}
+  if(k==='hist'){window.HBACK=function(){openArticle(window.ART.slug)};show('generic');mark(null);setG('История версий','');histView(id);return}
   if(await manageAct(k,id))openPage('home');
 }
 async function polyList(){window.LISTMODE='poly';
@@ -591,7 +594,7 @@ async function polyEdit(id){
   if(id){b.textContent='Загрузка…';var d=await api('article_get',{id:id});if(!d.ok){b.textContent='Ошибка: '+errText(d);return}a=d.article;rv=d.reviews}
   window.EDID=id||null;
   var dis=EDITABLE.indexOf(a.status)<0&&!(a.status==='published'&&isLead())?' disabled':'';
-  var h='<p><button class="mini" data-do="back">← К списку</button> Статус: '+STAT_RU[a.status]+'</p>';
+  var h='<p><button class="mini" data-do="back">← К списку</button>'+(id?' <button class="mini" data-do="hist" data-back="edit" data-id="'+id+'">История версий</button>':'')+' Статус: '+STAT_RU[a.status]+'</p>';
   rv.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Тип статьи</label><select id="e-kind"'+dis+'>'+opts(['object','story','hub'],a.kind,KIND_RU)+'</select>'
    +'<div id="e-obj"><label>Номер объекта</label><div class="pfx"><span>SCP-</span><input id="e-code" maxlength="8" value="'+esc((a.scp_code||'').replace(/^SCP-/,''))+'"'+dis+'></div></div>'
@@ -639,7 +642,7 @@ async function reviewView(id,stage){
   var d=await api('article_get',{id:id});
   if(!d.ok){b.textContent='Ошибка: '+(d.error||'');return}
   var a=d.article;window.RV={id:id,stage:stage};
-  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p><div class="art">'+fmt(a.body)+'</div>'+artFoot(a);
+  var h='<p><button class="mini" data-do="qback" data-stage="'+stage+'">← К очереди</button> <button class="mini" data-do="hist" data-back="review" data-id="'+id+'">История версий</button></p><h2>'+objName(a)+'</h2><p>'+kindLabel(a)+' · автор '+esc(a.author_name)+'</p><div class="art">'+fmt(a.body)+'</div>'+artFoot(a);
   d.reviews.forEach(function(r){h+='<div class="note">'+(r.stage==='lead'?'Руководитель':'Администратор')+': '+(r.decision==='approved'?'одобрено':'отклонено')+(r.comment?' — '+esc(r.comment):'')+'</div>'});
   h+='<div class="fm"><label>Комментарий</label><textarea id="r-com" rows="4"></textarea>';
   if(stage==='lead')h+='<label>Ссылка</label><div class="pfx"><span>'+esc(location.host)+'/</span><input id="r-slug" maxlength="80" value="'+esc((a.scp_code||'').toLowerCase())+'"></div>';
@@ -658,6 +661,7 @@ G().addEventListener('click',async function(e){
   var md=e.target.closest('[data-md]');if(md){e.preventDefault();applyMd(md.dataset.md);return}var b=e.target.closest('[data-do]');if(!b)return;e.preventDefault();var o=b.dataset.do;
   if(o==='new')polyEdit();else if(o==='edit')polyEdit(b.dataset.id);else if(o==='back')(window.LISTMODE==='manage'?manageList:polyList)();
   else if(o==='preview'){document.getElementById('e-prev').innerHTML='<div class="art">'+fmt(V('e-body'))+'</div>'}
+  else if(o==='hist'){window.HBACK=b.dataset.back==='manage'?manageList:b.dataset.back==='review'?function(){reviewView(window.RV.id,window.RV.stage)}:function(){polyEdit(b.dataset.id)};setG('История версий','');histView(b.dataset.id)}
   else if(o==='unpub'||o==='del'){if(await manageAct(o,b.dataset.id))(window.LISTMODE==='manage'?manageList:polyList)()}
   else if(o==='save')polySave();else if(o==='submit')polySubmit();
   else if(o==='open')reviewView(b.dataset.id,b.dataset.stage);else if(o==='qback')queueView(b.dataset.stage);
@@ -907,6 +911,81 @@ document.addEventListener('click',async function(e){
     var d2=await api('set_status',{id:f.dataset.uid,status:f.dataset.act});
     if(!d2.ok)alert('Ошибка: '+errText(d2));
     openProfile(P.profile.handle);
+  }
+});
+
+/* История версий */
+var NOTE_RU={submitted:'Отправлена на проверку',published:'Опубликована',edited:'Правка руководителя'};
+var FIELDS=[['kind','Тип'],['scp_code','Номер'],['title','Название'],['containment','Класс содержания'],['secondary','Вторичный класс'],['disruption','Класс нарушения'],['risk','Класс риска'],['origin','Происхождение'],['orig_author','Автор оригинала'],['orig_title','Название оригинала'],['orig_url','Ссылка на оригинал'],['credits','Источники и благодарности']];
+function noteRu(n){var m=/^rollback:(\d+)$/.exec(n||'');return m?'Откат к версии '+m[1]:(NOTE_RU[n]||n||'')}
+function fv(k,v){if(v==null||v==='')return '—';var M={kind:KIND_RU,containment:ACS.cont,secondary:ACS.sec,disruption:ACS.dis,risk:ACS.risk,origin:{original:'Авторская работа',translation:'Перевод'}}[k];return M&&M[v]?M[v]:v}
+function diffLines(a,b){
+  var s=0;while(s<a.length&&s<b.length&&a[s]===b[s])s++;
+  var ea=a.length,eb=b.length;while(ea>s&&eb>s&&a[ea-1]===b[eb-1]){ea--;eb--}
+  var A=a.slice(s,ea),B=b.slice(s,eb),out=[],i;
+  for(i=0;i<s;i++)out.push([' ',a[i]]);
+  if(A.length*B.length>4e6){A.forEach(function(x){out.push(['-',x])});B.forEach(function(x){out.push(['+',x])})}
+  else{
+    var n=A.length,m=B.length,L=[],j;for(i=0;i<=n;i++)L.push(new Array(m+1).fill(0));
+    for(i=n-1;i>=0;i--)for(j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+    i=0;j=0;
+    while(i<n&&j<m){if(A[i]===B[j]){out.push([' ',A[i]]);i++;j++}else if(L[i+1][j]>=L[i][j+1]){out.push(['-',A[i]]);i++}else{out.push(['+',B[j]]);j++}}
+    while(i<n)out.push(['-',A[i++]]);while(j<m)out.push(['+',B[j++]]);
+  }
+  for(i=ea;i<a.length;i++)out.push([' ',a[i]]);
+  return out;
+}
+function diffHtml(oldT,newT){
+  var D=diffLines(String(oldT||'').split('\n'),String(newT||'').split('\n')),keep=D.map(function(){return false}),i,k;
+  D.forEach(function(x,idx){if(x[0]!==' ')for(k=Math.max(0,idx-2);k<=Math.min(D.length-1,idx+2);k++)keep[k]=true});
+  if(!D.some(function(x){return x[0]!==' '}))return '<p class="cm-hint">Текст не изменился.</p>';
+  var h='',gap=false;
+  D.forEach(function(x,idx){
+    if(!keep[idx]){if(!gap){h+='<div class="df gap">…</div>';gap=true}return}
+    gap=false;h+='<div class="df '+(x[0]==='+'?'add':x[0]==='-'?'del':'')+'">'+(x[0]===' '?'&nbsp;':x[0])+' '+esc(x[1])+'</div>';
+  });
+  return h;
+}
+async function histView(aid){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('versions',{id:aid});
+  if(!d.ok){b.textContent='Нет доступа или ошибка: '+errText(d);return}
+  window.HART=d.article;
+  var h='<p><button class="mini" data-hv="back">← Назад</button></p><h2>'+esc(d.article.title||'Без названия')+'</h2>';
+  h+=d.versions.length?'<div style="overflow-x:auto"><table class="tbl"><tr><th>№</th><th>Дата</th><th>Кто</th><th>Событие</th><th></th></tr>'+d.versions.map(function(v){
+    return'<tr><td>'+v.version+'</td><td>'+dstr(v.created_at)+'</td><td>'+esc(v.editor_name)+'</td><td>'+esc(noteRu(v.note))+'</td><td><button class="mini" data-hv="open" data-id="'+v.id+'">Открыть</button></td></tr>'}).join('')+'</table></div>'
+    :'<p>История пока пуста: версии записываются, когда статья отправляется на проверку, публикуется или правится после публикации.</p>';
+  b.innerHTML=h;
+}
+async function verView(vid,mode){
+  var b=G();b.textContent='Загрузка…';
+  var d=await api('version_get',{id:vid});
+  if(!d.ok){b.textContent='Ошибка: '+errText(d);return}
+  window.VER=d;mode=mode||'prev';
+  var base=mode==='cur'?d.current:d.prev,cur=mode==='cur'?d.version.data:d.version.data,x=d.version.data;
+  var left=mode==='cur'?d.version.data:d.prev,right=mode==='cur'?d.current:d.version.data;
+  var h='<p><button class="mini" data-hv="list">← К списку версий</button> '+(d.can_restore?'<button class="mini" data-hv="restore" data-id="'+d.version.id+'">Откатить к этой версии</button> ':'')
+   +'<button class="mini" data-hv="'+(mode==='cur'?'prevmode':'curmode')+'" data-id="'+d.version.id+'">'+(mode==='cur'?'Сравнить с предыдущей':'Сравнить с текущей статьёй')+'</button></p>'
+   +'<h2>Версия '+d.version.version+' · '+esc(noteRu(d.version.note))+'</h2><p class="dt">'+dstr(d.version.created_at)+' · '+esc(d.version.editor_name)+'</p>'
+   +'<p><b>'+(mode==='cur'?'Что отличается от текущей статьи':(d.prev?'Что изменилось по сравнению с предыдущей версией':'Первая запись в истории'))+'</b></p>';
+  if(!left&&mode!=='cur'){h+='<div class="art">'+fmt(x.body||'')+'</div>';b.innerHTML=h;return}
+  var fch='';
+  FIELDS.forEach(function(f){var o=left[f[0]],n=right[f[0]];if((o==null?'':o)!==(n==null?'':n))fch+='<div class="df del">− '+f[1]+': '+esc(fv(f[0],o))+'</div><div class="df add">+ '+f[1]+': '+esc(fv(f[0],n))+'</div>'});
+  h+=(fch?'<p>Поля</p>'+fch:'')+'<p>Текст</p>'+diffHtml(left.body,right.body);
+  b.innerHTML=h;
+}
+G().addEventListener('click',async function(e){
+  var t=e.target.closest('[data-hv]');if(!t)return;e.preventDefault();var k=t.dataset.hv;
+  if(k==='back'){if(window.HBACK)window.HBACK()}
+  else if(k==='open')verView(t.dataset.id);
+  else if(k==='list')histView(window.VER.article.id);
+  else if(k==='curmode')verView(t.dataset.id,'cur');
+  else if(k==='prevmode')verView(t.dataset.id,'prev');
+  else if(k==='restore'){
+    if(!confirm('Вернуть статью к версии '+window.VER.version.version+'? Текущий текст заменится, а откат запишется в историю как новая версия.'))return;
+    var d=await api('version_restore',{id:t.dataset.id});
+    if(!d.ok)alert('Ошибка: '+errText(d));else alert('Готово: статья возвращена к выбранной версии.');
+    histView(window.VER.article.id);
   }
 });
 
